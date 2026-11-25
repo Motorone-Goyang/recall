@@ -247,7 +247,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <div id="dzResult" style="margin-top:8px"></div>
       <div class="actions" style="margin-top:8px">
         <button class="btn sm" type="button" id="rereadAll">PDF 부품번호 읽기</button>
-        <span class="hint">예전에 올려서 부품번호를 아직 읽지 않은 PDF를 한 번에 읽습니다.</span>
+        <span class="hint">부품번호를 아직 못 읽었거나 '확인 불가'로 나온 PDF를 한 번에 다시 읽습니다.</span>
       </div>
     </section>
 
@@ -557,6 +557,8 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       const rows = [];
       tc.items.forEach(it => {
         if (!it.str || !it.str.trim()) return;
+        // 비스듬한 워터마크 글자(회전된 글자)는 버림
+        if (Math.abs(it.transform[1]) > 0.01 || Math.abs(it.transform[2]) > 0.01) return;
         const x = it.transform[4], y = it.transform[5];
         let row = rows.find(r => Math.abs(r.y - y) < 3);
         if (!row) rows.push(row = { y, items: [] });
@@ -564,23 +566,36 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       });
       rows.sort((a, b) => b.y - a.y).forEach(r => lines.push(r.items.sort((a, b) => a.x - b.x).map(i => i.s.trim()).join(' ').replace(/\s+/g, ' ').trim()));
     }
-    const parts = []; let inParts = false;
+    const parts = [], starred = []; let inParts = false;
     for (const t of lines) {
-      if (/^(Parts|부품)$/i.test(t)) { inParts = true; continue; }
+      const c = t.replace(/\s+/g, '');
+      // 제목 "Parts" / "부품" (띄어쓰기가 섞여 나와도 인식), 또는 표 머리줄 "수량 … 부품번호"
+      if (/^(parts|부품|부품목록|부품리스트)$/i.test(c) || (/수량|quantity|qty/i.test(c) && /부품번호|partnumber|partno/i.test(c))) { inParts = true; continue; }
       if (!inParts) continue;
       if (/^Operation\b|^작업 ?(텍스트|번호)|^\d+\.\s|Mercedes-Benz|^Global Service/i.test(t)) { inParts = false; continue; }
-      const m = t.match(PARTNO); if (!m) continue;
+      const m = t.match(PARTNO);
+      if (!m) {
+        // 부품번호 자리에 * 만 있는 줄: 차대번호(FIN)별로 XENTRY에서 확인해야 하는 부품
+        const s = t.match(/^(\d+)\s+(.+?)\s*\*\s*$/);
+        if (s && starred.length < 20) starred.push({ no: '', qty: s[1], name: s[2].slice(0, 80) });
+        continue;
+      }
       const no = [m[1], m[2], m[3], m[4], m[5], ...(m[6] || '').trim().split(/\s+/).filter(Boolean)].join(' ');
       const before = t.slice(0, m.index).trim();
-      const q = before.match(/^(\d+(?:[.,]\d+)?)\s+(.*)$/);
+      const q = before.match(/^(\d+\*?(?:[.,]\d+)?|As required|필요\s?시|필요한 만큼)\s+(.*)$/i);
       const item = { no, qty: q ? q[1] : '', name: (q ? q[2] : before).slice(0, 80) };
       const dup = parts.find(x => x.no === no);
       if (!dup) parts.push(item);
     }
-    return parts.slice(0, 100);
+    return { parts: parts.slice(0, 100), starred };
   }
   async function readPdfParts(buf) {
-    try { const parts = await extractParts(buf); return { pdfParts: parts, pdfPartsStatus: parts.length ? 'ok' : 'none' }; }
+    try {
+      const { parts, starred } = await extractParts(buf);
+      if (parts.length) return { pdfParts: parts, pdfPartsStatus: 'ok' };
+      if (starred.length) return { pdfParts: starred, pdfPartsStatus: 'vin' };
+      return { pdfParts: [], pdfPartsStatus: 'none' };
+    }
     catch (e) { return { pdfParts: [], pdfPartsStatus: 'error' }; }
   }
   // 이미 올린 PDF 다시 읽기
@@ -592,7 +607,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     } catch (err) { toast(code + ' PDF를 읽지 못했습니다'); }
   }
   async function rereadAll(btn) {
-    const list = [...state.recalls.values()].filter(r => blobOk(r.pdf) && !r.pdfPartsStatus);
+    const list = [...state.recalls.values()].filter(r => blobOk(r.pdf) && r.pdfPartsStatus !== 'ok' && r.pdfPartsStatus !== 'vin');
     if (!list.length) { toast('다시 읽을 PDF가 없습니다'); return; }
     btn.disabled = true;
     for (let i = 0; i < list.length; i++) { btn.textContent = `읽는 중 ${i + 1}/${list.length}`; await rereadPdf(list[i].code); }
@@ -606,6 +621,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const memo = rc.part ? `<span class="stocknote">${esc(rc.part).replace(/\n/g, '<br>')}</span>` : '';
     if (!blobOk(rc.pdf)) return `<span class="stocknote" style="margin:0">PDF 없음</span>${memo}`;
     if (rc.pdfPartsStatus === 'none') return `<span class="chip err">부품번호 확인 불가</span>${memo}`;
+    if (rc.pdfPartsStatus === 'vin') {
+      const names = (rc.pdfParts || []).slice(0, 2).map(p => `<span class="pline"><span class="pname" style="flex-basis:auto">${p.qty ? '×' + esc(p.qty) + ' ' : ''}${esc(p.name)}</span></span>`).join('');
+      return `<span class="chip ask">차대번호별 확인 (XENTRY)</span><span class="plist" style="margin-top:4px">${names}</span>${memo}`;
+    }
     if (rc.pdfPartsStatus === 'error') return `<span class="chip ask">PDF 읽기 실패</span>${memo}`;
     if (rc.pdfPartsStatus !== 'ok') return `<span class="chip none">PDF 부품번호 미확인</span>${memo}`;
     const list = rc.pdfParts || [], open = state.expanded.has(key), show = open ? list : list.slice(0, 2);
@@ -670,7 +689,14 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const out = $('#dzResult'); const lines = [];
     for (const f of files) {
       const m = norm(f.name).match(/(RC|SM)\d{5,8}/);
-      const code = m && m[0];
+      let code = m && m[0];
+      if (!code) {
+        // "5496637_첨부1_작업지시서.pdf"처럼 숫자로 시작하면 끝자리가 같은 리콜번호를 찾음 (하나일 때만)
+        const d = f.name.match(/^\s*(\d{7})(?!\d)/);
+        const hits = d ? [...state.recalls.keys()].filter(k => k.endsWith(d[1])) : [];
+        if (hits.length === 1) code = hits[0];
+        else if (hits.length > 1) { lines.push(['err', f.name + ' — ' + hits.join(', ') + ' 중 어느 것인지 알 수 없습니다. 해당 행에 직접 끌어다 놓으세요']); continue; }
+      }
       if (!isPdf(f)) { lines.push(['err', f.name + ' — PDF가 아닙니다']); continue; }
       if (!code || !state.recalls.has(code)) { lines.push(['err', f.name + ' — 파일 이름에서 리콜번호를 찾지 못했습니다. 목록의 해당 행에 직접 끌어다 놓으세요']); continue; }
       const ok = await uploadPdf(code, f);
