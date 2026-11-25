@@ -379,7 +379,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (over) { const k = stockKind(over); chip = `<span class="chip ${k.cls}">${esc(over)}</span><span class="stocknote">${resOverride ? '이 예약만 직접 지정' : '직접 지정'}</span>`; }
     else {
       const a = autoStock(rc);
-      if (a) chip = `<span class="chip ${a.cls}">${esc(a.label)}</span>${s09.meta && (a.cls === 'own' || a.cls === 'order') ? '<span class="stocknote">S09 기준</span>' : ''}`;
+      if (a) chip = `<span class="chip ${a.cls}">${esc(a.label)}</span>`;
       else { const k = stockKind(rc ? rc.stock : ''); chip = `<span class="chip ${k.cls}">${esc(k.label)}</span>`; }
     }
     if (sel && state.isAdmin) {
@@ -810,7 +810,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   function s09Html(rc) {
     if (!s09.meta) return '';
     const m = s09Match(rc);
-    if (!m || !m.length) return '<span class="s09line"><span class="chip none">S09 해당 부품 없음</span></span>';
+    if (!m || !m.length) return '';
     return m.map(h => `<span class="s09line"><span class="chip ${h.qty > 0 ? 'own' : 'err'}">${h.qty > 0 ? 'S09 재고 ' + h.qty : 'S09 재고 없음'}</span> <span class="mono">${esc(h.part)}</span></span>`).join('');
   }
   function s09Summary(rc) {
