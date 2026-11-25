@@ -109,6 +109,8 @@ td.parts{min-width:220px;max-width:300px}
 .pname{font-size:.75rem;color:var(--muted);flex-basis:100%}
 .pmore{font:inherit;font-size:.76rem;font-weight:600;color:var(--accent);background:none;border:0;padding:4px 0 0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 #lk-part{white-space:normal;font-family:var(--f-body)}
+.rtitle{display:block;margin-top:3px;font-family:var(--f-body);font-size:.78rem;font-weight:500;letter-spacing:0;color:var(--muted);white-space:normal;max-width:240px;line-height:1.35}
+.chip.sw{background:var(--accent-soft);color:var(--accent)}
 .s09meta{font-size:.88rem;color:var(--muted)}
 .s09meta strong{color:var(--fg)}
 .sub{margin:0 0 12px;font-size:.85rem;color:var(--muted)}
@@ -247,7 +249,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <div id="dzResult" style="margin-top:8px"></div>
       <div class="actions" style="margin-top:8px">
         <button class="btn sm" type="button" id="rereadAll">PDF 부품번호 읽기</button>
-        <span class="hint">부품번호를 아직 못 읽었거나 '확인 불가'로 나온 PDF를 한 번에 다시 읽습니다.</span>
+        <span class="hint">작업 제목·부품번호를 아직 못 읽었거나 '확인 불가'로 나온 PDF를 한 번에 다시 읽습니다.</span>
       </div>
     </section>
 
@@ -381,7 +383,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (!code) { h.textContent = ''; h.className = 'hint'; $('#lk-part').textContent = '리콜번호를 입력하면 표시됩니다'; $('#lk-stock').innerHTML = '—'; $('#lk-pdf').innerHTML = ''; return; }
     if (!r) { h.textContent = state.loaded.c ? '리콜 목록에 없는 번호입니다' : ''; h.className = 'hint err';
       $('#lk-part').textContent = '—'; $('#lk-stock').innerHTML = '—'; $('#lk-pdf').innerHTML = ''; return; }
-    h.textContent = '리콜 목록에서 찾았습니다'; h.className = 'hint ok';
+    h.textContent = r.pdfTitle || '리콜 목록에서 찾았습니다'; h.className = 'hint ok';
     $('#lk-part').innerHTML = partsCell(r, 'lk') || '—';
     $('#lk-stock').innerHTML = stockCell(r.stock, $('#f-stock').value) + s09Html(r);
     $('#lk-pdf').innerHTML = pdfLink(r) || '<span class="k">PDF 없음</span>';
@@ -472,7 +474,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         : `<button class="btn sm" data-edit="${esc(r.id)}">수정</button> <button class="btn sm" data-ask="${esc(r.id)}">삭제</button>`;
       return `<tr class="${cls}">
         <td class="num">${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}</td>
-        <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}</td>
+        <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}${titleHtml(rc)}</td>
         <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
         <td>${esc(r.plate)}</td>
         <td>${stockCell(rc ? rc.stock : '', r.stock)}${s09Html(rc)}</td>
@@ -519,7 +521,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       const up = state.canUpload ? `<label class="btn sm" style="display:inline-block;font-size:.8rem;color:var(--fg)">${blobOk(r.pdf) ? 'PDF 교체' : 'PDF 올리기'}<input type="file" accept="application/pdf" data-up="${esc(r.code)}" hidden></label>` : '';
       const edit = state.canWrite ? `<button class="btn sm" data-redit="${esc(r.code)}">수정</button>` : '';
       return `<tr data-code="${esc(r.code)}">
-        <td class="mono">${esc(r.code)}</td>
+        <td class="mono">${esc(r.code)}${titleHtml(r)}</td>
         <td class="num">${n ? `<strong>${n}</strong>대` : '<span style="color:var(--muted)">0</span>'}</td>
         <td>${stockCell(r.stock)}${s09Html(r)}</td>
         <td class="parts">${partsCell(r, 'rc:' + r.code)}</td>
@@ -562,11 +564,24 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         const x = it.transform[4], y = it.transform[5];
         let row = rows.find(r => Math.abs(r.y - y) < 3);
         if (!row) rows.push(row = { y, items: [] });
-        row.items.push({ x, s: it.str });
+        row.items.push({ x, s: it.str, w: it.width || 0, h: Math.hypot(it.transform[0], it.transform[1]) || 10 });
       });
-      rows.sort((a, b) => b.y - a.y).forEach(r => lines.push(r.items.sort((a, b) => a.x - b.x).map(i => i.s.trim()).join(' ').replace(/\s+/g, ' ').trim()));
+      // 글자 조각 사이가 실제로 떨어져 있을 때만 띄어쓰기 ("흡 기 포트" → "흡기 포트")
+      const joinRow = items => items.sort((a, b) => a.x - b.x).reduce((acc, it, i, arr) => {
+        if (!i) return it.s;
+        const prev = arr[i - 1], gap = it.x - (prev.x + prev.w);
+        const space = /\s$/.test(acc) || /^\s/.test(it.s) || !prev.w || gap > Math.min(prev.h, it.h) * 0.2;
+        return acc + (space ? ' ' : '') + it.s;
+      }, '').replace(/\s+/g, ' ').trim();
+      rows.sort((a, b) => b.y - a.y).forEach(r => lines.push(joinRow(r.items)));
     }
     const parts = [], starred = []; let inParts = false;
+    // 작업 제목: "Code: 25P…" 바로 다음 줄 (Model 줄 앞)
+    const ci = lines.findIndex(t => /^Code\s*:/i.test(t));
+    let title = '';
+    if (ci >= 0) { const t = lines[ci + 1] || ''; if (!/^Models?\b/i.test(t)) title = t.slice(0, 100); }
+    const all = lines.join(' ').replace(/\s+/g, '');
+    const sw = /소프트웨어|software|SCN코딩/i.test(title.replace(/\s+/g, '')) || /소프트웨어업데이트|softwareupdate/i.test(all);
     for (const t of lines) {
       const c = t.replace(/\s+/g, '');
       // 제목 "Parts" / "부품" (띄어쓰기가 섞여 나와도 인식), 또는 표 머리줄 "수량 … 부품번호"
@@ -587,16 +602,18 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       const dup = parts.find(x => x.no === no);
       if (!dup) parts.push(item);
     }
-    return { parts: parts.slice(0, 100), starred };
+    return { parts: parts.slice(0, 100), starred, title, sw };
   }
   async function readPdfParts(buf) {
     try {
-      const { parts, starred } = await extractParts(buf);
-      if (parts.length) return { pdfParts: parts, pdfPartsStatus: 'ok' };
-      if (starred.length) return { pdfParts: starred, pdfPartsStatus: 'vin' };
-      return { pdfParts: [], pdfPartsStatus: 'none' };
+      const { parts, starred, title, sw } = await extractParts(buf);
+      const pdfTitle = title;
+      if (parts.length) return { pdfParts: parts, pdfPartsStatus: 'ok', pdfTitle };
+      if (starred.length) return { pdfParts: starred, pdfPartsStatus: 'vin', pdfTitle };
+      if (sw) return { pdfParts: [], pdfPartsStatus: 'sw', pdfTitle };
+      return { pdfParts: [], pdfPartsStatus: 'none', pdfTitle };
     }
-    catch (e) { return { pdfParts: [], pdfPartsStatus: 'error' }; }
+    catch (e) { return { pdfParts: [], pdfPartsStatus: 'error', pdfTitle: '' }; }
   }
   // 이미 올린 PDF 다시 읽기
   async function rereadPdf(code) {
@@ -607,12 +624,15 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     } catch (err) { toast(code + ' PDF를 읽지 못했습니다'); }
   }
   async function rereadAll(btn) {
-    const list = [...state.recalls.values()].filter(r => blobOk(r.pdf) && r.pdfPartsStatus !== 'ok' && r.pdfPartsStatus !== 'vin');
+    const list = [...state.recalls.values()].filter(r => blobOk(r.pdf) && ((r.pdfPartsStatus !== 'ok' && r.pdfPartsStatus !== 'vin' && r.pdfPartsStatus !== 'sw') || r.pdfTitle === undefined));
     if (!list.length) { toast('다시 읽을 PDF가 없습니다'); return; }
     btn.disabled = true;
     for (let i = 0; i < list.length; i++) { btn.textContent = `읽는 중 ${i + 1}/${list.length}`; await rereadPdf(list[i].code); }
     btn.disabled = false; btn.textContent = 'PDF 부품번호 읽기'; toast('PDF 부품번호를 읽었습니다');
   }
+
+  // 리콜번호 밑 작업 제목 (PDF의 Code 다음 줄)
+  const titleHtml = rc => rc && rc.pdfTitle ? `<span class="rtitle">${esc(rc.pdfTitle)}</span>` : '';
 
   // 부품번호 칸: 대표 2개 + 눌러서 전체 보기
   state.expanded = new Set();
@@ -620,6 +640,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (!rc) return '';
     const memo = rc.part ? `<span class="stocknote">${esc(rc.part).replace(/\n/g, '<br>')}</span>` : '';
     if (!blobOk(rc.pdf)) return `<span class="stocknote" style="margin:0">PDF 없음</span>${memo}`;
+    if (rc.pdfPartsStatus === 'sw') return `<span class="chip sw">소프트웨어 업데이트</span>${memo}`;
     if (rc.pdfPartsStatus === 'none') return `<span class="chip err">부품번호 확인 불가</span>${memo}`;
     if (rc.pdfPartsStatus === 'vin') {
       const names = (rc.pdfParts || []).slice(0, 2).map(p => `<span class="pline"><span class="pname" style="flex-basis:auto">${p.qty ? '×' + esc(p.qty) + ' ' : ''}${esc(p.name)}</span></span>`).join('');
@@ -778,7 +799,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     $('#s09Count').textContent = `리콜 ${rows.length}건 중 ${found}건 부품 확인`;
     body.innerHTML = rows.map(r => {
       const m = s09Match(r) || [];
-      return `<tr><td class="mono">${esc(r.code)}</td><td class="part">${esc(r.part)}</td>
+      return `<tr><td class="mono">${esc(r.code)}${titleHtml(r)}</td><td class="part">${esc(r.part)}</td>
         <td class="mono">${m.map(h => esc(h.part) + ' : ' + h.qty).join('<br>') || '<span style="color:var(--muted)">—</span>'}</td>
         <td>${s09Summary(r)}</td></tr>`;
     }).join('');
