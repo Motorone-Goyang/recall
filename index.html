@@ -510,6 +510,14 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       plate: $('#f-plate').value.trim(), stock: state.isAdmin ? $('#f-stock').value : '', note: $('#f-note').value.trim(),
     };
     if (!data.date || !data.recall) { hf.textContent = '예약날짜와 리콜번호를 입력해 주세요'; hf.className = 'hint err'; return; }
+    // 같은 차대번호 + 같은 리콜번호가 이미 있으면 (지난 예약 포함) 저장하지 않음
+    const dup = state.reservations.find(r => norm(r.vin) === data.vin && norm(r.recall) === data.recall);
+    if (dup) {
+      const msg = `이미 예약된 차량입니다.\n\n리콜번호: ${data.recall}\n차대번호: ${data.vin}\n기존 예약일: ${dup.date || '-'}${dup.plate ? '\n차량번호: ' + dup.plate : ''}\n\n같은 차대번호·리콜번호로는 다시 예약할 수 없습니다.`;
+      alert(msg);
+      hf.textContent = `이미 ${dup.date || ''}에 예약된 차량입니다 (${data.recall})`; hf.className = 'hint err';
+      return;
+    }
     const btn = $('#saveRes'); btn.disabled = true;
     try {
       if (state.editingRes) { await db.doc('reservations/' + state.editingRes).set({ ...data, createdAt: (state.reservations.find(r => r.id === state.editingRes) || {}).createdAt || Date.now() }); toast('예약을 수정했습니다'); }
