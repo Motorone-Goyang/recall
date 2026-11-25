@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>리콜 예약리스트</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: workshop desk sheet — sticky header + tabs, entry form on top, dense table below */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --line:#d9dee4; --fg:#18212b; --muted:#5d6977;
+  --accent:#1f5fa8; --accent-fg:#ffffff; --accent-soft:#e3edf8;
+  --ok:#1d7a46; --ok-soft:#e2f3e8; --warn:#a15c00; --warn-soft:#fbefdc;
+  --ask:#6b4bb5; --ask-soft:#eee8fa; --err:#c0322b; --err-soft:#fbe5e3;
+  --f-body:"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a2129; --line:#2c3642; --fg:#e4e9ef; --muted:#97a3b1;
+  --accent:#6ea8ec; --accent-fg:#0d1620; --accent-soft:#1d2e43;
+  --ok:#6fcf97; --ok-soft:#183325; --warn:#f0b260; --warn-soft:#3a2a14;
+  --ask:#b9a2f0; --ask-soft:#2b2440; --err:#f07a72; --err-soft:#3d1e1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171d; --surface:#1a2129; --line:#2c3642; --fg:#e4e9ef; --muted:#97a3b1;
+  --accent:#6ea8ec; --accent-fg:#0d1620; --accent-soft:#1d2e43;
+  --ok:#6fcf97; --ok-soft:#183325; --warn:#f0b260; --warn-soft:#3a2a14;
+  --ask:#b9a2f0; --ask-soft:#2b2440; --err:#f07a72; --err-soft:#3d1e1c; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+img{max-width:100%}
+.login{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:var(--bg);z-index:30}
+.loginbox{width:100%;max-width:360px;display:grid;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:28px 24px}
+.loginbox h1{font-size:1.35rem}
+.loginbox .btn{width:100%;padding:10px}
+body.locked header,body.locked main{display:none}
+.who{font-size:.8rem;font-weight:600;color:var(--fg)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding-block:12px}
+h1{font-size:1.25rem;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.sync{font-size:.8rem;color:var(--muted)}
+nav{display:flex;gap:4px;margin-left:auto}
+nav button{border:1px solid transparent;background:none;color:var(--muted);font:inherit;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+main{padding-block:20px 48px;display:grid;gap:20px}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+h2{font-size:1rem;margin:0 0 12px;font-weight:700}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:start}
+label{display:grid;gap:4px;font-size:.78rem;font-weight:600;color:var(--muted);letter-spacing:.02em}
+input,select,textarea{font:inherit;font-size:.92rem;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input.mono{font-family:var(--f-mono);letter-spacing:.04em;text-transform:uppercase}
+input.bad{border-color:var(--err);background:var(--err-soft)}
+.hint{font-weight:500;font-size:.75rem;letter-spacing:0;min-height:1.1em}
+.hint.err{color:var(--err)} .hint.ok{color:var(--ok)}
+.lookup{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:6px;padding:10px 12px;font-size:.88rem}
+.lookup .k{color:var(--muted);font-size:.75rem;font-weight:600;margin-right:6px}
+.lookup .part{white-space:pre-line;font-family:var(--f-mono);font-size:.85rem}
+.actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:inherit;font-weight:600;border-radius:6px;padding:8px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.danger{color:var(--err);border-color:var(--err)}
+.btn.sm{padding:4px 10px;font-size:.8rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+a.pdf{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.8rem;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:999px;padding:2px 10px;white-space:nowrap}
+a.pdf:hover{background:var(--accent-soft)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar input{max-width:260px}
+.toolbar .count{margin-left:auto;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:.82rem;border:0;background:var(--surface);color:var(--muted);padding:6px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:.88rem}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--bg);font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.03em;position:sticky;top:0;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--bg)}
+tr.past td{color:var(--muted)}
+tr.today td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+td.mono,.mono{font-family:var(--f-mono);font-size:.82rem}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td.part{white-space:pre-line;font-family:var(--f-mono);font-size:.8rem;max-width:260px}
+td.row-act{white-space:nowrap;text-align:right}
+.chip{display:inline-block;font-size:.75rem;font-weight:600;border-radius:4px;padding:1px 8px;white-space:nowrap}
+.chip.own{background:var(--ok-soft);color:var(--ok)}
+.chip.order{background:var(--warn-soft);color:var(--warn)}
+.chip.ask{background:var(--ask-soft);color:var(--ask)}
+.chip.none{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.chip.err{background:var(--err-soft);color:var(--err)}
+.stocknote{display:block;font-size:.75rem;color:var(--muted);margin-top:2px}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.confirm{display:inline-flex;gap:4px;align-items:center;font-size:.8rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:6px;font-weight:600;font-size:.88rem;z-index:20}
+.notice{font-size:.85rem;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:8px 12px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;font-size:.78rem;color:var(--muted);align-items:center}
+.dropzone{display:grid;gap:6px;place-items:center;text-align:center;border:2px dashed var(--line);border-radius:8px;padding:28px 16px;cursor:pointer;color:var(--muted);font-size:.85rem;font-weight:500;letter-spacing:0;background:var(--bg)}
+.dropzone strong{color:var(--fg);font-size:1rem}
+.dropzone.over{border-color:var(--accent);background:var(--accent-soft)}
+tr.drop td{background:var(--accent-soft)!important;box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
+td.parts{min-width:220px;max-width:300px}
+.plist{display:grid;gap:4px}
+.pline{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.pno{font-family:var(--f-mono);font-size:.8rem;font-weight:600;white-space:nowrap}
+.pq{font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.pname{font-size:.75rem;color:var(--muted);flex-basis:100%}
+.pmore{font:inherit;font-size:.76rem;font-weight:600;color:var(--accent);background:none;border:0;padding:4px 0 0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+#lk-part{white-space:normal;font-family:var(--f-body)}
+.s09meta{font-size:.88rem;color:var(--muted)}
+.s09meta strong{color:var(--fg)}
+.sub{margin:0 0 12px;font-size:.85rem;color:var(--muted)}
+.s09line{display:block;margin-top:4px;font-size:.78rem}
+.s09line .mono{font-size:.76rem}
+#s09Preview{min-width:600px}
+#s09Preview td{font-size:.8rem;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+#s09Preview th.sel{color:var(--accent)}
+input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:auto}
+@media (max-width:600px){nav{margin-left:0;width:100%}nav button{flex:1}.toolbar .count{margin-left:0;width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form id="loginForm" class="loginbox" autocomplete="on">
+    <h1>리콜 예약리스트</h1>
+    <p class="sub" style="margin:0">아이디와 비밀번호를 입력하세요.</p>
+    <label>아이디 <input id="l-id" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+    <label>비밀번호 <input id="l-pw" type="password" autocomplete="current-password"></label>
+    <button class="btn primary" id="l-btn" type="submit">로그인</button>
+    <span class="hint err" id="l-err"></span>
+  </form>
+</div>
+
+<header>
+  <div class="wrap">
+    <h1>리콜 예약리스트</h1>
+    <span class="sync" id="sync">불러오는 중…</span>
+    <nav role="tablist">
+      <button role="tab" id="tab-res" aria-selected="true" data-view="res">예약 리스트</button>
+      <button role="tab" id="tab-rc" aria-selected="false" data-view="rc">리콜 목록</button>
+      <button role="tab" id="tab-s09" aria-selected="false" data-view="s09">S09 재고</button>
+    </nav>
+    <span class="who" id="who"></span>
+    <button class="btn sm" id="logout" type="button" hidden>로그아웃</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice" class="notice" hidden></div>
+
+  <!-- ============ 예약 리스트 ============ -->
+  <div id="view-res" style="display:grid;gap:20px">
+    <section class="panel" id="resFormPanel">
+      <h2 id="resFormTitle">예약 등록</h2>
+      <form id="resForm" class="form" autocomplete="off">
+        <label>예약날짜
+          <input type="date" id="f-date" required>
+        </label>
+        <label>리콜번호
+          <input id="f-recall" class="mono" list="recallList" placeholder="RC5496637" required>
+          <span class="hint" id="h-recall"></span>
+        </label>
+        <label>차대번호 (17자리)
+          <input id="f-vin" class="mono" maxlength="20" placeholder="W1N1671591A696351" required>
+          <span class="hint" id="h-vin"></span>
+        </label>
+        <label>차량번호
+          <input id="f-plate" placeholder="12가3456">
+        </label>
+        <label>재고현황
+          <select id="f-stock">
+            <option value="">리콜 목록 기준</option>
+            <option value="자체재고">자체재고</option>
+            <option value="주문 필요">주문 필요</option>
+            <option value="재고 문의">재고 문의</option>
+          </select>
+        </label>
+        <label>비고
+          <input id="f-note" placeholder="예약 변경 등">
+        </label>
+        <div class="lookup" id="lookup">
+          <span><span class="k">부품번호</span><span class="part" id="lk-part">리콜번호를 입력하면 표시됩니다</span></span>
+          <span><span class="k">재고</span><span id="lk-stock">—</span></span>
+          <span id="lk-pdf"></span>
+        </div>
+        <div class="actions">
+          <button class="btn primary" type="submit" id="saveRes">예약 저장</button>
+          <button class="btn" type="button" id="cancelEdit" hidden>수정 취소</button>
+          <span class="hint" id="h-form"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="q-res" type="search" placeholder="리콜번호·차대번호·차량번호 검색">
+        <div class="seg" id="resFilter">
+          <button type="button" data-f="up" aria-pressed="true">오늘 이후</button>
+          <button type="button" data-f="all" aria-pressed="false">전체</button>
+          <button type="button" data-f="past" aria-pressed="false">지난 예약</button>
+        </div>
+        <span class="count" id="resCount"></span>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr>
+            <th>예약날짜</th><th>리콜번호</th><th>차대번호</th><th>차량번호</th><th>재고현황</th><th>부품번호</th><th>비고</th><th>PDF</th><th></th>
+          </tr></thead>
+          <tbody id="resBody"><tr><td colspan="9" class="empty">예약 목록을 불러오는 중입니다…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 리콜 목록 ============ -->
+  <div id="view-rc" hidden style="display:grid;gap:20px">
+    <section class="panel">
+      <h2 id="rcFormTitle">리콜 추가</h2>
+      <form id="rcForm" class="form" autocomplete="off">
+        <label>리콜번호
+          <input id="r-code" class="mono" placeholder="RC0000000" required>
+        </label>
+        <label>재고현황
+          <input id="r-stock" placeholder="자체재고 / 국내재고 / 재고문의">
+        </label>
+        <label style="grid-column:span 2">부품번호 / 작업내용
+          <textarea id="r-part" rows="2" placeholder="A000 998 86 06"></textarea>
+        </label>
+        <div class="actions">
+          <button class="btn primary" type="submit">리콜 저장</button>
+          <button class="btn" type="button" id="rcCancel" hidden>수정 취소</button>
+          <span class="hint" id="h-rc"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" id="dzPanel" hidden>
+      <h2>리콜 PDF 올리기</h2>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="dzPick" accept="application/pdf,.pdf" multiple hidden>
+        <strong>PDF 파일을 여기로 끌어다 놓으세요</strong>
+        <span>파일 이름에 리콜번호가 있으면(예: RC5496637.pdf) 자동으로 연결됩니다. 여러 개를 한 번에 올릴 수 있고, 클릭해서 고를 수도 있습니다.<br>파일 이름에 번호가 없으면 아래 목록의 해당 리콜 행 위에 바로 끌어다 놓으세요.</span>
+      </label>
+      <div id="dzResult" style="margin-top:8px"></div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn sm" type="button" id="rereadAll">PDF 부품번호 읽기</button>
+        <span class="hint">예전에 올려서 부품번호를 아직 읽지 않은 PDF를 한 번에 읽습니다.</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="q-rc" type="search" placeholder="리콜번호·부품번호 검색">
+        <div class="legend">
+          <span class="chip own">자체재고</span><span class="chip order">주문 필요</span><span class="chip ask">재고 문의</span>
+        </div>
+        <span class="count" id="rcCount"></span>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr>
+            <th>리콜번호</th><th>예약 대수</th><th>재고현황</th><th>부품번호 / 작업내용</th><th>PDF</th><th></th>
+          </tr></thead>
+          <tbody id="rcBody"><tr><td colspan="6" class="empty">리콜 목록을 불러오는 중입니다…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <!-- ============ S09 재고 ============ -->
+  <div id="view-s09" hidden style="display:grid;gap:20px">
+    <section class="panel">
+      <h2>S09 Daily report 올리기</h2>
+      <div class="s09meta" id="s09Meta">아직 올린 S09 파일이 없습니다.</div>
+      <label class="dropzone" id="s09Drop" style="margin-top:12px">
+        <input type="file" id="s09Pick" accept=".xlsx,.xls,.csv" hidden>
+        <strong>S09 파일(엑셀·CSV)을 여기로 끌어다 놓으세요</strong>
+        <span>매일 받은 S09 파일을 놓으면 부품번호별 재고를 읽어 예약 리스트와 리콜 목록에 재고 유무를 표시합니다. 클릭해서 고를 수도 있습니다.</span>
+      </label>
+      <label style="margin-top:16px">또는 엑셀·화면에서 복사한 표를 붙여넣기 (제목 줄 포함, Ctrl+V)
+        <textarea id="s09Paste" rows="5" placeholder="부품번호	센터	재고&#10;A0009988606	고양	3&#10;A2135407799	고양	0"></textarea>
+      </label>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn" type="button" id="s09PasteBtn">붙여넣은 내용 읽기</button>
+        <span class="hint">붙여넣으면 바로 읽습니다. 직접 고친 뒤에는 이 버튼을 누르세요.</span>
+      </div>
+    </section>
+
+    <section class="panel" id="s09Map" hidden>
+      <h2>열 확인</h2>
+      <p class="sub" id="s09MapInfo"></p>
+      <div class="form">
+        <label>부품번호 열 <select id="m-part"></select></label>
+        <label>재고 수량 열 <select id="m-qty"></select></label>
+        <label>센터 열 (있으면) <select id="m-center"></select></label>
+        <label>센터 선택 <select id="m-centerVal" disabled><option value="">전체 합계</option></select></label>
+        <div class="actions">
+          <button class="btn primary" type="button" id="s09Apply">재고 반영</button>
+          <button class="btn" type="button" id="s09Cancel">취소</button>
+          <span class="hint" id="h-s09"></span>
+        </div>
+      </div>
+      <div class="tbl" style="margin-top:12px"><table id="s09Preview"></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="q-s09" type="search" placeholder="부품번호 검색">
+        <span class="count" id="s09Count"></span>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>리콜번호</th><th>리콜 부품번호 / 작업내용</th><th>S09에서 찾은 부품</th><th>재고</th></tr></thead>
+          <tbody id="s09Body"><tr><td colspan="4" class="empty">S09 파일을 올리면 리콜 부품의 재고가 여기에 표시됩니다.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<datalist id="recallList"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const state = { recalls: new Map(), reservations: [], canWrite: true, canUpload: false,
+                  editingRes: null, editingRc: null, filter: 'up', confirmDel: null, loaded: { r: false, c: false } };
+  let db = null, assets = null;
+
+  // ---------- helpers ----------
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const norm = v => String(v || '').trim().toUpperCase().replace(/\s+/g, '');
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const toast = msg => { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2200); };
+  const blobOk = id => typeof id === 'string' && /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)?$/.test(id) && id.length >= 8;
+
+  // 재고 문구를 세 가지 상태로 분류
+  function stockKind(s) {
+    const t = String(s || '').replace(/\s/g, '');
+    if (!t) return { cls: 'none', label: '미입력' };
+    if (/문의|확인|미입고|입고예정|독일/.test(t)) return { cls: 'ask', label: '재고 문의' };
+    if (/자체/.test(t) || /^\d+대/.test(t)) return { cls: 'own', label: '자체재고' };
+    if (/국내|MBK|주문|필요/.test(t)) return { cls: 'order', label: '주문 필요' };
+    return { cls: 'none', label: t };
+  }
+  function stockCell(raw, override) {
+    if (override) { const k = stockKind(override); return `<span class="chip ${k.cls}">${esc(override)}</span><span class="stocknote">직접 지정</span>`; }
+    const k = stockKind(raw);
+    const note = raw && raw.replace(/\s/g,'') !== k.label.replace(/\s/g,'') ? `<span class="stocknote">${esc(raw)}</span>` : '';
+    return `<span class="chip ${k.cls}">${esc(k.label)}</span>${note}`;
+  }
+  function vinCheck(v) {
+    const n = norm(v);
+    if (!n) return { ok: false, msg: '' };
+    if (!/^[A-Z0-9]+$/.test(n)) return { ok: false, msg: '영문과 숫자만 입력할 수 있습니다' };
+    if (/[IOQ]/.test(n) && n.length === 17) return { ok: false, msg: '차대번호에는 I, O, Q가 들어가지 않습니다' };
+    if (n.length !== 17) return { ok: false, msg: `17자리가 아닙니다 (현재 ${n.length}자리)` };
+    return { ok: true, msg: '17자리 확인' };
+  }
+  const pdfLink = r => r && blobOk(r.pdf) ? `<a class="pdf" href="${pdfUrl(r.pdf)}" target="_blank" rel="noopener">PDF 보기</a>` : '';
+
+  // ---------- tabs ----------
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  function showView(v) {
+    document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+    $('#view-res').hidden = v !== 'res'; $('#view-rc').hidden = v !== 'rc'; $('#view-s09').hidden = v !== 's09';
+  }
+
+  // ---------- reservation form ----------
+  $('#f-date').value = today();
+  function updateLookup() {
+    const code = norm($('#f-recall').value);
+    const r = state.recalls.get(code);
+    const h = $('#h-recall');
+    if (!code) { h.textContent = ''; h.className = 'hint'; $('#lk-part').textContent = '리콜번호를 입력하면 표시됩니다'; $('#lk-stock').innerHTML = '—'; $('#lk-pdf').innerHTML = ''; return; }
+    if (!r) { h.textContent = state.loaded.c ? '리콜 목록에 없는 번호입니다' : ''; h.className = 'hint err';
+      $('#lk-part').textContent = '—'; $('#lk-stock').innerHTML = '—'; $('#lk-pdf').innerHTML = ''; return; }
+    h.textContent = '리콜 목록에서 찾았습니다'; h.className = 'hint ok';
+    $('#lk-part').innerHTML = partsCell(r, 'lk') || '—';
+    $('#lk-stock').innerHTML = stockCell(r.stock, $('#f-stock').value) + s09Html(r);
+    $('#lk-pdf').innerHTML = pdfLink(r) || '<span class="k">PDF 없음</span>';
+  }
+  function updateVin() {
+    const el = $('#f-vin'), c = vinCheck(el.value), h = $('#h-vin');
+    h.textContent = c.msg; h.className = 'hint ' + (c.ok ? 'ok' : c.msg ? 'err' : '');
+    el.classList.toggle('bad', !c.ok && !!c.msg);
+    return c.ok;
+  }
+  $('#f-recall').addEventListener('input', updateLookup);
+  $('#f-stock').addEventListener('change', updateLookup);
+  $('#f-vin').addEventListener('input', updateVin);
+
+  function resetResForm() {
+    state.editingRes = null;
+    lockFields(false);
+    $('#resForm').reset(); $('#f-date').value = today();
+    $('#resFormTitle').textContent = '예약 등록'; $('#saveRes').textContent = '예약 저장'; $('#cancelEdit').hidden = true;
+    $('#f-vin').classList.remove('bad'); $('#h-vin').textContent = ''; $('#h-form').textContent = '';
+    updateLookup();
+  }
+  $('#cancelEdit').addEventListener('click', resetResForm);
+  // 수정 모드에서는 비고만 바꿀 수 있음
+  function lockFields(on) {
+    ['#f-date', '#f-recall', '#f-vin', '#f-plate', '#f-stock'].forEach(s => { $(s).disabled = on; });
+  }
+
+  $('#resForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const hf = $('#h-form');
+    if (!db) { hf.textContent = '저장소에 연결되지 않아 저장할 수 없습니다'; hf.className = 'hint err'; return; }
+    if (state.editingRes) {
+      const btn = $('#saveRes'); btn.disabled = true;
+      try { await db.doc('reservations/' + state.editingRes).update({ note: $('#f-note').value.trim() }); toast('비고를 수정했습니다'); resetResForm(); }
+      catch (err) { hf.textContent = writeErr(err); hf.className = 'hint err'; }
+      finally { btn.disabled = false; }
+      return;
+    }
+    if (!updateVin()) { hf.textContent = '차대번호 17자리를 확인해 주세요'; hf.className = 'hint err'; $('#f-vin').focus(); return; }
+    const data = {
+      date: $('#f-date').value, recall: norm($('#f-recall').value), vin: norm($('#f-vin').value),
+      plate: $('#f-plate').value.trim(), stock: $('#f-stock').value, note: $('#f-note').value.trim(),
+    };
+    if (!data.date || !data.recall) { hf.textContent = '예약날짜와 리콜번호를 입력해 주세요'; hf.className = 'hint err'; return; }
+    const btn = $('#saveRes'); btn.disabled = true;
+    try {
+      if (state.editingRes) { await db.doc('reservations/' + state.editingRes).set({ ...data, createdAt: (state.reservations.find(r => r.id === state.editingRes) || {}).createdAt || Date.now() }); toast('예약을 수정했습니다'); }
+      else { await db.collection('reservations').add({ ...data, createdAt: Date.now() }); toast('예약을 저장했습니다'); }
+      resetResForm();
+    } catch (err) { hf.textContent = writeErr(err); hf.className = 'hint err'; }
+    finally { btn.disabled = false; }
+  });
+
+  function writeErr(err) {
+    if (err && err.code === 'invalid_argument') { setReadOnly(); return '편집 권한이 없어 저장할 수 없습니다'; }
+    if (err && err.code === 'quota_exceeded') return '저장 공간이 가득 찼습니다. 지난 예약을 정리해 주세요';
+    return '저장하지 못했습니다. 잠시 후 다시 시도해 주세요';
+  }
+
+  // ---------- reservation table ----------
+  document.querySelectorAll('#resFilter button').forEach(b => b.addEventListener('click', () => {
+    state.filter = b.dataset.f;
+    document.querySelectorAll('#resFilter button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    renderRes();
+  }));
+  $('#q-res').addEventListener('input', renderRes);
+
+  function renderRes() {
+    const body = $('#resBody'), q = norm($('#q-res').value), t = today();
+    if (!state.loaded.r) return;
+    let rows = state.reservations.slice();
+    if (state.filter === 'up') rows = rows.filter(r => (r.date || '') >= t);
+    if (state.filter === 'past') rows = rows.filter(r => (r.date || '') < t);
+    if (q) rows = rows.filter(r => [r.recall, r.vin, r.plate, r.note].some(v => norm(v).includes(q)));
+    rows.sort((a, b) => state.filter === 'past' ? (b.date || '').localeCompare(a.date || '') : (a.date || '').localeCompare(b.date || ''));
+    $('#resCount').textContent = `${rows.length}건 표시 · 전체 ${state.reservations.length}건`;
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="9" class="empty">${state.reservations.length ? '조건에 맞는 예약이 없습니다' : '아직 예약이 없습니다. 위 양식에서 첫 예약을 등록하세요.'}</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(r => {
+      const rc = state.recalls.get(r.recall);
+      const v = vinCheck(r.vin);
+      const cls = (r.date < t ? 'past' : '') + (r.date === t ? ' today' : '');
+      const act = !state.canWrite ? '' : state.confirmDel === r.id
+        ? `<span class="confirm">삭제할까요? <button class="btn sm danger" data-del="${esc(r.id)}">삭제</button><button class="btn sm" data-nodel>취소</button></span>`
+        : `<button class="btn sm" data-edit="${esc(r.id)}">수정</button> <button class="btn sm" data-ask="${esc(r.id)}">삭제</button>`;
+      return `<tr class="${cls}">
+        <td class="num">${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}</td>
+        <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}</td>
+        <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
+        <td>${esc(r.plate)}</td>
+        <td>${stockCell(rc ? rc.stock : '', r.stock)}${s09Html(rc)}</td>
+        <td class="parts">${partsCell(rc, 'res:' + r.id)}</td>
+        <td>${esc(r.note)}</td>
+        <td>${pdfLink(rc)}</td>
+        <td class="row-act">${act}</td></tr>`;
+    }).join('');
+  }
+  $('#resBody').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.edit) {
+      const r = state.reservations.find(x => x.id === b.dataset.edit); if (!r) return;
+      state.editingRes = r.id;
+      $('#f-date').value = r.date || ''; $('#f-recall').value = r.recall || ''; $('#f-vin').value = r.vin || '';
+      $('#f-plate').value = r.plate || ''; $('#f-stock').value = r.stock || ''; $('#f-note').value = r.note || '';
+      $('#resFormTitle').textContent = '비고 수정 · ' + (r.date || '') + ' ' + (r.plate || r.vin || ''); $('#saveRes').textContent = '비고 저장'; $('#cancelEdit').hidden = false;
+      lockFields(true); $('#h-vin').textContent = ''; $('#f-vin').classList.remove('bad'); updateLookup();
+      $('#resFormPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); $('#f-note').focus({ preventScroll: true });
+    } else if (b.dataset.ask) { state.confirmDel = b.dataset.ask; renderRes(); }
+    else if ('nodel' in b.dataset) { state.confirmDel = null; renderRes(); }
+    else if (b.dataset.del) {
+      b.disabled = true;
+      try { await db.doc('reservations/' + b.dataset.del).delete(); toast('예약을 삭제했습니다'); }
+      catch (err) { toast(writeErr(err)); }
+      state.confirmDel = null; renderRes();
+    }
+  });
+
+  // ---------- recall master ----------
+  $('#q-rc').addEventListener('input', renderRc);
+  function counts() { const m = new Map(); state.reservations.forEach(r => m.set(r.recall, (m.get(r.recall) || 0) + 1)); return m; }
+  function renderRc() {
+    if (!state.loaded.c) return;
+    const body = $('#rcBody'), q = norm($('#q-rc').value), cnt = counts();
+    let rows = [...state.recalls.values()];
+    if (q) rows = rows.filter(r => norm(r.code).includes(q) || norm(r.part).includes(q) || norm(r.stock).includes(q));
+    rows.sort((a, b) => (cnt.get(b.code) || 0) - (cnt.get(a.code) || 0) || a.code.localeCompare(b.code));
+    $('#rcCount').textContent = `${rows.length}건 표시 · 전체 ${state.recalls.size}건`;
+    $('#recallList').innerHTML = [...state.recalls.keys()].sort().map(c => `<option value="${esc(c)}">`).join('');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="6" class="empty">${state.recalls.size ? '검색 결과가 없습니다' : '등록된 리콜이 없습니다. 위 양식에서 리콜번호를 추가하세요.'}</td></tr>`; return; }
+    body.innerHTML = rows.map(r => {
+      const n = cnt.get(r.code) || 0;
+      const up = state.canUpload ? `<label class="btn sm" style="display:inline-block;font-size:.8rem;color:var(--fg)">${blobOk(r.pdf) ? 'PDF 교체' : 'PDF 올리기'}<input type="file" accept="application/pdf" data-up="${esc(r.code)}" hidden></label>` : '';
+      const edit = state.canWrite ? `<button class="btn sm" data-redit="${esc(r.code)}">수정</button>` : '';
+      return `<tr data-code="${esc(r.code)}">
+        <td class="mono">${esc(r.code)}</td>
+        <td class="num">${n ? `<strong>${n}</strong>대` : '<span style="color:var(--muted)">0</span>'}</td>
+        <td>${stockCell(r.stock)}${s09Html(r)}</td>
+        <td class="parts">${partsCell(r, 'rc:' + r.code)}</td>
+        <td>${pdfLink(r)}${r.pdfName ? `<span class="stocknote">${esc(r.pdfName)}</span>` : ''}</td>
+        <td class="row-act">${up} ${edit}</td></tr>`;
+    }).join('');
+  }
+  $('#rcBody').addEventListener('click', e => {
+    const b = e.target.closest('button[data-redit]'); if (!b) return;
+    const r = state.recalls.get(b.dataset.redit); if (!r) return;
+    state.editingRc = r.code;
+    $('#r-code').value = r.code; $('#r-code').readOnly = true; $('#r-stock').value = r.stock || ''; $('#r-part').value = r.part || '';
+    $('#rcFormTitle').textContent = '리콜 수정 · ' + r.code; $('#rcCancel').hidden = false;
+    $('#rcForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  const isPdf = f => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  // ---------- PDF 안의 Parts 표 읽기 ----------
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  let pdfjsReady = null;
+  function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+  function loadPdfJs() {
+    if (!pdfjsReady) pdfjsReady = loadScript(PDFJS + 'pdf.worker.min.js').then(() => loadScript(PDFJS + 'pdf.min.js')).then(() => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+      return window.pdfjsLib;
+    }).catch(e => { pdfjsReady = null; throw e; });
+    return pdfjsReady;
+  }
+  const PARTNO = /([A-Z])\s?(\d{3})\s?(\d{3})\s?(\d{2})\s?(\d{2})((?:\s?\d{2}){0,2})(?!\d)/;
+  async function extractParts(buf) {
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+    const lines = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const tc = await (await doc.getPage(p)).getTextContent();
+      const rows = [];
+      tc.items.forEach(it => {
+        if (!it.str || !it.str.trim()) return;
+        const x = it.transform[4], y = it.transform[5];
+        let row = rows.find(r => Math.abs(r.y - y) < 3);
+        if (!row) rows.push(row = { y, items: [] });
+        row.items.push({ x, s: it.str });
+      });
+      rows.sort((a, b) => b.y - a.y).forEach(r => lines.push(r.items.sort((a, b) => a.x - b.x).map(i => i.s.trim()).join(' ').replace(/\s+/g, ' ').trim()));
+    }
+    const parts = []; let inParts = false;
+    for (const t of lines) {
+      if (/^(Parts|부품)$/i.test(t)) { inParts = true; continue; }
+      if (!inParts) continue;
+      if (/^Operation\b|^작업 ?(텍스트|번호)|^\d+\.\s|Mercedes-Benz|^Global Service/i.test(t)) { inParts = false; continue; }
+      const m = t.match(PARTNO); if (!m) continue;
+      const no = [m[1], m[2], m[3], m[4], m[5], ...(m[6] || '').trim().split(/\s+/).filter(Boolean)].join(' ');
+      const before = t.slice(0, m.index).trim();
+      const q = before.match(/^(\d+(?:[.,]\d+)?)\s+(.*)$/);
+      const item = { no, qty: q ? q[1] : '', name: (q ? q[2] : before).slice(0, 80) };
+      const dup = parts.find(x => x.no === no);
+      if (!dup) parts.push(item);
+    }
+    return parts.slice(0, 100);
+  }
+  async function readPdfParts(buf) {
+    try { const parts = await extractParts(buf); return { pdfParts: parts, pdfPartsStatus: parts.length ? 'ok' : 'none' }; }
+    catch (e) { return { pdfParts: [], pdfPartsStatus: 'error' }; }
+  }
+  // 이미 올린 PDF 다시 읽기
+  async function rereadPdf(code) {
+    const r = state.recalls.get(code); if (!r || !blobOk(r.pdf)) return;
+    try {
+      const buf = await (await fetch(pdfUrl(r.pdf))).arrayBuffer();
+      await db.doc('recalls/' + code).update(await readPdfParts(buf));
+    } catch (err) { toast(code + ' PDF를 읽지 못했습니다'); }
+  }
+  async function rereadAll(btn) {
+    const list = [...state.recalls.values()].filter(r => blobOk(r.pdf) && !r.pdfPartsStatus);
+    if (!list.length) { toast('다시 읽을 PDF가 없습니다'); return; }
+    btn.disabled = true;
+    for (let i = 0; i < list.length; i++) { btn.textContent = `읽는 중 ${i + 1}/${list.length}`; await rereadPdf(list[i].code); }
+    btn.disabled = false; btn.textContent = 'PDF 부품번호 읽기'; toast('PDF 부품번호를 읽었습니다');
+  }
+
+  // 부품번호 칸: 대표 2개 + 눌러서 전체 보기
+  state.expanded = new Set();
+  function partsCell(rc, key) {
+    if (!rc) return '';
+    const memo = rc.part ? `<span class="stocknote">${esc(rc.part).replace(/\n/g, '<br>')}</span>` : '';
+    if (!blobOk(rc.pdf)) return `<span class="stocknote" style="margin:0">PDF 없음</span>${memo}`;
+    if (rc.pdfPartsStatus === 'none') return `<span class="chip err">부품번호 확인 불가</span>${memo}`;
+    if (rc.pdfPartsStatus === 'error') return `<span class="chip ask">PDF 읽기 실패</span>${memo}`;
+    if (rc.pdfPartsStatus !== 'ok') return `<span class="chip none">PDF 부품번호 미확인</span>${memo}`;
+    const list = rc.pdfParts || [], open = state.expanded.has(key), show = open ? list : list.slice(0, 2);
+    const rows = show.map(p => `<span class="pline"><span class="pno">${esc(p.no)}</span>${p.qty ? `<span class="pq">×${esc(p.qty)}</span>` : ''}${p.name ? `<span class="pname">${esc(p.name)}</span>` : ''}</span>`).join('');
+    const more = list.length > 2 ? `<button type="button" class="pmore" data-expand="${esc(key)}">${open ? '접기' : `부품 ${list.length}개 전체 보기`}</button>` : '';
+    return `<span class="plist">${rows}</span>${more}${open ? memo : ''}`;
+  }
+  $('#rereadAll').addEventListener('click', e => rereadAll(e.currentTarget));
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button[data-expand]'); if (!b) return;
+    const k = b.dataset.expand; state.expanded.has(k) ? state.expanded.delete(k) : state.expanded.add(k);
+    if (k === 'lk') updateLookup(); else if (k.startsWith('rc:')) renderRc(); else renderRes();
+  });
+
+  async function uploadPdf(code, file) {
+    if (!assets) { toast('PDF를 올릴 권한이 없습니다'); return false; }
+    if (!isPdf(file)) { toast(file.name + ': PDF 파일만 올릴 수 있습니다'); return false; }
+    if (!state.recalls.has(code)) { toast(code + ': 리콜 목록에 없는 번호입니다'); return false; }
+    toast(code + ' PDF 올리는 중…');
+    try {
+      const buf = await file.arrayBuffer();
+      const [res, parsed] = await Promise.all([assets.upload(file, { type: 'application/pdf' }, code), readPdfParts(buf.slice(0))]);
+      await db.doc('recalls/' + code).update({ pdf: res.id, pdfName: file.name, ...parsed });
+      toast(code + (parsed.pdfPartsStatus === 'ok' ? ` PDF 저장 · 부품 ${parsed.pdfParts.length}개 확인` : ' PDF 저장 · 부품번호 확인 불가'));
+      return true;
+    } catch (err) {
+      const m = { too_large: '20MB 이하 PDF만 올릴 수 있습니다', unsupported_type: 'PDF 파일이 아닙니다', quota_or_state: '파일 저장 공간이 가득 찼습니다', rate_limited: '잠시 후 다시 시도해 주세요' };
+      toast(m[err && err.code] || 'PDF를 올리지 못했습니다');
+      return false;
+    }
+  }
+  $('#rcBody').addEventListener('change', e => {
+    const inp = e.target.closest('input[data-up]'); if (!inp || !inp.files[0]) return;
+    uploadPdf(inp.dataset.up, inp.files[0]);
+  });
+  // 리콜 행 위로 PDF를 끌어다 놓기
+  const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  $('#rcBody').addEventListener('dragover', e => {
+    const tr = e.target.closest('tr[data-code]'); if (!tr || !assets || !hasFiles(e)) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+    document.querySelectorAll('tr.drop').forEach(x => x !== tr && x.classList.remove('drop'));
+    tr.classList.add('drop');
+  });
+  $('#rcBody').addEventListener('dragleave', e => {
+    const tr = e.target.closest('tr[data-code]'); if (tr && !tr.contains(e.relatedTarget)) tr.classList.remove('drop');
+  });
+  $('#rcBody').addEventListener('drop', e => {
+    const tr = e.target.closest('tr[data-code]'); if (!tr || !assets) return;
+    e.preventDefault(); tr.classList.remove('drop');
+    const f = e.dataTransfer.files[0]; if (f) uploadPdf(tr.dataset.code, f);
+  });
+  // 목록·드롭존 밖에 놓친 파일이 브라우저에서 열리지 않도록
+  window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); });
+  // 드롭존: 파일 이름 속 리콜번호로 자동 연결 (여러 개 가능)
+  const dz = $('#dropzone');
+  ['dragenter', 'dragover'].forEach(t => dz.addEventListener(t, e => { if (!hasFiles(e)) return; e.preventDefault(); dz.classList.add('over'); }));
+  dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('over'); });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleDropFiles([...e.dataTransfer.files]); });
+  $('#dzPick').addEventListener('change', e => { handleDropFiles([...e.target.files]); e.target.value = ''; });
+  async function handleDropFiles(files) {
+    const out = $('#dzResult'); const lines = [];
+    for (const f of files) {
+      const m = norm(f.name).match(/(RC|SM)\d{5,8}/);
+      const code = m && m[0];
+      if (!isPdf(f)) { lines.push(['err', f.name + ' — PDF가 아닙니다']); continue; }
+      if (!code || !state.recalls.has(code)) { lines.push(['err', f.name + ' — 파일 이름에서 리콜번호를 찾지 못했습니다. 목록의 해당 행에 직접 끌어다 놓으세요']); continue; }
+      const ok = await uploadPdf(code, f);
+      lines.push(ok ? ['ok', f.name + ' → ' + code + ' 연결 완료'] : ['err', f.name + ' — 올리지 못했습니다']);
+    }
+    out.innerHTML = lines.map(([c, t]) => `<div class="hint ${c}">${esc(t)}</div>`).join('');
+  }
+  function resetRc() {
+    state.editingRc = null; $('#rcForm').reset(); $('#r-code').readOnly = false;
+    $('#rcFormTitle').textContent = '리콜 추가'; $('#rcCancel').hidden = true; $('#h-rc').textContent = '';
+  }
+  $('#rcCancel').addEventListener('click', resetRc);
+  $('#rcForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const h = $('#h-rc'), code = norm($('#r-code').value);
+    if (!db) { h.textContent = '저장소에 연결되지 않아 저장할 수 없습니다'; h.className = 'hint err'; return; }
+    if (!/^[A-Z0-9]{3,30}$/.test(code)) { h.textContent = '리콜번호는 영문·숫자로 입력해 주세요'; h.className = 'hint err'; return; }
+    if (!state.editingRc && state.recalls.has(code)) { h.textContent = '이미 있는 리콜번호입니다. 목록에서 수정을 눌러 주세요'; h.className = 'hint err'; return; }
+    const prev = state.recalls.get(code) || {};
+    const data = { code, stock: $('#r-stock').value.trim(), part: $('#r-part').value.trim() };
+    if (prev.pdf) { data.pdf = prev.pdf; data.pdfName = prev.pdfName || ''; }
+    if (prev.pdfPartsStatus) { data.pdfParts = prev.pdfParts || []; data.pdfPartsStatus = prev.pdfPartsStatus; }
+    try { await db.doc('recalls/' + code).set(data); toast(state.editingRc ? '리콜을 수정했습니다' : '리콜을 추가했습니다'); resetRc(); }
+    catch (err) { h.textContent = writeErr(err); h.className = 'hint err'; }
+  });
+
+  function setReadOnly() {
+    state.canWrite = false;
+    $('#resForm').querySelectorAll('input,select,button').forEach(x => x.disabled = true);
+    $('#rcForm').querySelectorAll('input,textarea,button').forEach(x => x.disabled = true);
+    const n = $('#notice'); n.textContent = '보기 전용입니다. 예약을 등록하거나 수정하려면 문서 소유자에게 편집 권한을 요청하세요.'; n.hidden = false;
+    renderRes(); renderRc();
+  }
+
+  // ---------- S09 재고 ----------
+  const pkey = v => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const s09 = { meta: null, items: new Map(), keys: [], cache: new Map(), sheet: null };
+  // 리콜 부품 문구 안에 들어 있는 S09 부품번호를 찾음
+  function s09Match(rc) {
+    if (!rc || !s09.keys.length) return null;
+    const src = (rc.part || '') + ' ' + (rc.pdfParts || []).map(p => p.no).join(' ');
+    const ck = rc.code + '|' + src;
+    if (s09.cache.has(ck)) return s09.cache.get(ck);
+    const text = pkey(src);
+    let hits = text.length < 8 ? [] : s09.keys.filter(k => text.includes(k));
+    hits = hits.filter(k => !hits.some(o => o !== k && o.includes(k))); // 더 긴 번호가 있으면 짧은 것 제외
+    const res = hits.map(k => ({ part: k, qty: s09.items.get(k) }));
+    s09.cache.set(ck, res); return res;
+  }
+  function s09Html(rc) {
+    if (!s09.meta) return '';
+    const m = s09Match(rc);
+    if (!m || !m.length) return '<span class="s09line"><span class="chip none">S09 해당 부품 없음</span></span>';
+    return m.map(h => `<span class="s09line"><span class="chip ${h.qty > 0 ? 'own' : 'err'}">${h.qty > 0 ? 'S09 재고 ' + h.qty : 'S09 재고 없음'}</span> <span class="mono">${esc(h.part)}</span></span>`).join('');
+  }
+  function s09Summary(rc) {
+    const m = s09Match(rc);
+    if (!s09.meta) return '<span class="chip none">S09 미업로드</span>';
+    if (!m || !m.length) return '<span class="chip none">해당 부품 없음</span>';
+    return m.every(h => h.qty > 0) ? '<span class="chip own">재고 있음</span>' : m.some(h => h.qty > 0) ? '<span class="chip order">일부 없음</span>' : '<span class="chip err">재고 없음</span>';
+  }
+  function renderS09Meta() {
+    const m = s09.meta, el = $('#s09Meta');
+    if (!m) { el.textContent = '아직 올린 S09 파일이 없습니다.'; return; }
+    const d = new Date(m.uploadedAt || 0);
+    const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    el.innerHTML = `최근 반영: <strong>${esc(when)}</strong> · ${esc(m.fileName)} · 부품 ${Number(m.parts || 0).toLocaleString()}개${m.mapping && m.mapping.centerValue ? ' · 센터 <strong>' + esc(m.mapping.centerValue) + '</strong>' : ''}`;
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    if (d < today0) el.innerHTML += ' <span class="chip order">오늘 파일 아님</span>';
+  }
+  $('#q-s09').addEventListener('input', renderS09);
+  function renderS09() {
+    renderS09Meta();
+    const body = $('#s09Body'), q = pkey($('#q-s09').value);
+    if (!s09.meta) { body.innerHTML = '<tr><td colspan="4" class="empty">S09 파일을 올리면 리콜 부품의 재고가 여기에 표시됩니다.</td></tr>'; $('#s09Count').textContent = ''; return; }
+    let rows = [...state.recalls.values()].sort((a, b) => a.code.localeCompare(b.code));
+    if (q) rows = rows.filter(r => pkey(r.code + r.part).includes(q));
+    const found = rows.filter(r => (s09Match(r) || []).length).length;
+    $('#s09Count').textContent = `리콜 ${rows.length}건 중 ${found}건 부품 확인`;
+    body.innerHTML = rows.map(r => {
+      const m = s09Match(r) || [];
+      return `<tr><td class="mono">${esc(r.code)}</td><td class="part">${esc(r.part)}</td>
+        <td class="mono">${m.map(h => esc(h.part) + ' : ' + h.qty).join('<br>') || '<span style="color:var(--muted)">—</span>'}</td>
+        <td>${s09Summary(r)}</td></tr>`;
+    }).join('');
+  }
+
+  // 파일 읽기
+  const s09Drop = $('#s09Drop');
+  ['dragenter', 'dragover'].forEach(t => s09Drop.addEventListener(t, e => { if (!hasFiles(e)) return; e.preventDefault(); s09Drop.classList.add('over'); }));
+  s09Drop.addEventListener('dragleave', e => { if (!s09Drop.contains(e.relatedTarget)) s09Drop.classList.remove('over'); });
+  s09Drop.addEventListener('drop', e => { e.preventDefault(); s09Drop.classList.remove('over'); if (e.dataTransfer.files[0]) readS09(e.dataTransfer.files[0]); });
+  $('#s09Pick').addEventListener('change', e => { if (e.target.files[0]) readS09(e.target.files[0]); e.target.value = ''; });
+
+  async function readS09(file) {
+    if (!window.XLSX) { toast('엑셀 읽기 도구를 불러오지 못했습니다. 새로고침해 주세요'); return; }
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { toast('엑셀(xlsx, xls) 또는 CSV 파일만 올릴 수 있습니다'); return; }
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      loadAoa(aoa, file.name);
+    } catch (err) { toast('파일을 읽지 못했습니다. 다른 형식으로 저장해 보세요'); }
+  }
+  function loadAoa(aoa, name) {
+    // 제목 줄 찾기: 앞 20줄 중 글자 칸이 가장 많은 줄
+    let hi = 0, best = -1;
+    aoa.slice(0, 20).forEach((r, i) => { const n = r.filter(c => String(c).trim() && isNaN(Number(c))).length; if (n > best) { best = n; hi = i; } });
+    const headers = (aoa[hi] || []).map((h, i) => String(h).trim() || `열 ${i + 1}`);
+    const rows = aoa.slice(hi + 1).filter(r => r.some(c => String(c).trim()));
+    if (!rows.length) { toast('데이터 줄을 찾지 못했습니다. 제목 줄과 함께 복사했는지 확인해 주세요'); return; }
+    s09.sheet = { fileName: name, headers, rows };
+    openMapping();
+  }
+  // 붙여넣기: 엑셀 복사본은 탭으로 칸이 나뉨 (없으면 쉼표, 그것도 없으면 2칸 이상 공백)
+  function parsePasted(text) {
+    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+    if (!lines.length) return [];
+    const sep = lines.some(l => l.includes('\t')) ? '\t' : lines.some(l => l.includes(',')) ? ',' : / {2,}/;
+    return lines.map(l => l.split(sep).map(c => c.trim()));
+  }
+  function readPasted() {
+    const text = $('#s09Paste').value;
+    if (!text.trim()) { toast('붙여넣은 내용이 없습니다'); return; }
+    const aoa = parsePasted(text);
+    if (!aoa.length || Math.max(...aoa.map(r => r.length)) < 2) { toast('칸이 나뉘지 않았습니다. 엑셀에서 표를 그대로 복사해 주세요'); return; }
+    const d = new Date();
+    loadAoa(aoa, `붙여넣기 ${d.getMonth() + 1}/${d.getDate()}`);
+  }
+  $('#s09PasteBtn').addEventListener('click', readPasted);
+  $('#s09Paste').addEventListener('paste', () => setTimeout(readPasted, 0));
+  function guess(headers, re, saved) {
+    if (saved && headers.includes(saved)) return headers.indexOf(saved);
+    return headers.findIndex(h => re.test(h));
+  }
+  function openMapping() {
+    const { headers, rows, fileName } = s09.sheet, saved = (s09.meta && s09.meta.mapping) || {};
+    const opts = (withNone) => (withNone ? '<option value="-1">없음</option>' : '') + headers.map((h, i) => `<option value="${i}">${esc(h)}</option>`).join('');
+    $('#m-part').innerHTML = opts(false); $('#m-qty').innerHTML = opts(false); $('#m-center').innerHTML = opts(true);
+    const gp = guess(headers, /부품|품번|part|p\/?n|자재|material/i, saved.part);
+    const gq = guess(headers, /가용|재고|수량|qty|stock|on.?hand|avail/i, saved.qty);
+    const gc = guess(headers, /센터|지점|창고|plant|location|whs|branch|dealer/i, saved.center);
+    $('#m-part').value = String(Math.max(gp, 0)); $('#m-qty').value = String(Math.max(gq, 0)); $('#m-center').value = String(gc);
+    fillCenters(saved.centerValue);
+    $('#s09MapInfo').textContent = `${fileName} · ${rows.length.toLocaleString()}줄. 자동으로 고른 열이 맞는지 확인하고 '재고 반영'을 누르세요.`;
+    $('#h-s09').textContent = '';
+    $('#s09Map').hidden = false; renderPreview();
+    $('#s09Map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function fillCenters(pref) {
+    const ci = Number($('#m-center').value), sel = $('#m-centerVal');
+    if (ci < 0) { sel.innerHTML = '<option value="">전체 합계</option>'; sel.disabled = true; return; }
+    const vals = [...new Set(s09.sheet.rows.map(r => String(r[ci] ?? '').trim()).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">전체 합계</option>' + vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    sel.disabled = false;
+    const p = pref && vals.includes(pref) ? pref : vals.find(v => /고양/.test(v) && !/SF/i.test(v)) || '';
+    sel.value = p;
+  }
+  ['#m-part', '#m-qty'].forEach(s => $(s).addEventListener('change', renderPreview));
+  $('#m-center').addEventListener('change', () => { fillCenters(); renderPreview(); });
+  $('#s09Cancel').addEventListener('click', () => { $('#s09Map').hidden = true; s09.sheet = null; });
+  function renderPreview() {
+    const { headers, rows } = s09.sheet;
+    const sel = new Set([$('#m-part').value, $('#m-qty').value, $('#m-center').value].map(Number));
+    $('#s09Preview').innerHTML = `<thead><tr>${headers.map((h, i) => `<th class="${sel.has(i) ? 'sel' : ''}">${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.slice(0, 5).map(r => `<tr>${headers.map((_, i) => `<td>${esc(r[i])}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  }
+  $('#s09Apply').addEventListener('click', async () => {
+    const h = $('#h-s09');
+    if (!db) { h.textContent = '저장소에 연결되지 않아 반영할 수 없습니다'; h.className = 'hint err'; return; }
+    const { headers, rows, fileName } = s09.sheet;
+    const pi = Number($('#m-part').value), qi = Number($('#m-qty').value), ci = Number($('#m-center').value), cv = $('#m-centerVal').value;
+    if (pi === qi) { h.textContent = '부품번호 열과 재고 수량 열이 같습니다'; h.className = 'hint err'; return; }
+    const items = {};
+    let used = 0;
+    for (const r of rows) {
+      if (ci >= 0 && cv && String(r[ci] ?? '').trim() !== cv) continue;
+      const k = pkey(r[pi]); if (k.length < 6) continue;
+      const q = Number(String(r[qi] ?? '').replace(/[^0-9.\-]/g, '')) || 0;
+      items[k] = (items[k] || 0) + q; used++;
+    }
+    const keys = Object.keys(items);
+    if (!keys.length) { h.textContent = '부품번호를 하나도 읽지 못했습니다. 열을 다시 골라 주세요'; h.className = 'hint err'; return; }
+    const CH = 4000, chunks = Math.ceil(keys.length / CH);
+    const btn = $('#s09Apply'); btn.disabled = true; h.textContent = '반영하는 중…'; h.className = 'hint';
+    try {
+      for (let i = 0; i < chunks; i++) {
+        const part = {}; keys.slice(i * CH, (i + 1) * CH).forEach(k => part[k] = items[k]);
+        await db.doc('stockparts/c' + i).set({ items: part });
+      }
+      const oldChunks = (s09.meta && s09.meta.chunks) || 0;
+      for (let i = chunks; i < oldChunks; i++) await db.doc('stockparts/c' + i).delete();
+      await db.doc('stock/meta').set({
+        fileName, uploadedAt: Date.now(), rows: used, parts: keys.length, chunks,
+        mapping: { part: headers[pi], qty: headers[qi], center: ci >= 0 ? headers[ci] : '', centerValue: cv },
+      });
+      $('#s09Map').hidden = true; s09.sheet = null; $('#s09Paste').value = ''; toast(`S09 재고를 반영했습니다 (부품 ${keys.length.toLocaleString()}개)`);
+    } catch (err) { h.textContent = writeErr(err); h.className = 'hint err'; }
+    finally { btn.disabled = false; }
+  });
+  function rebuildS09(chunkDocs) {
+    s09.items = new Map();
+    const n = (s09.meta && s09.meta.chunks) || 0;
+    chunkDocs.forEach(d => { if (Number(d.id.slice(1)) < n) Object.entries((d.data() || {}).items || {}).forEach(([k, v]) => s09.items.set(k, Number(v) || 0)); });
+    s09.keys = [...s09.items.keys()]; s09.cache.clear();
+    renderS09(); renderRes(); renderRc(); updateLookup();
+  }
+
+  // ---------- Supabase 연결 (DB · PDF 저장 · 로그인) ----------
+  const CFG = window.RECALL_CONFIG || {};
+  const ID_DOMAIN = '@recall.app';     // 아이디 goyang → goyang@recall.app 로 로그인
+  const PDF_BUCKET = 'recall-pdfs';
+  let sb = null;
+  function pdfUrl(id) { return `${CFG.SUPABASE_URL}/storage/v1/object/public/${PDF_BUCKET}/${id}.pdf`; }
+  function rid(bytes) { const a = new Uint8Array(bytes); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, '0')).join(''); }
+
+  // 기존 화면 코드가 쓰던 저장소 방식(doc/collection)을 Supabase 표 하나(docs)로 연결
+  function makeDb(sb) {
+    const T = 'docs', listeners = new Map(), timers = new Map();
+    const snapDoc = (id, data) => ({ id, exists: data !== undefined, data: () => data, metadata: { fromCache: false, hasPendingWrites: false } });
+    const wErr = e => ({ code: /row-level|permission|JWT|denied/i.test((e && e.message) || '') ? 'invalid_argument' : 'unavailable', message: e && e.message });
+    async function fetchCol(col) {
+      const all = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from(T).select('id,data').eq('collection', col).order('id').range(from, from + 999);
+        if (error) throw error;
+        all.push(...data); if (data.length < 1000) break;
+      }
+      return all;
+    }
+    async function refresh(col) {
+      const fns = listeners.get(col); if (!fns || !fns.size) return;
+      try {
+        const docs = (await fetchCol(col)).map(r => snapDoc(r.id, r.data));
+        fns.forEach(f => f.next({ docs, size: docs.length, empty: !docs.length, metadata: { fromCache: false } }));
+      } catch (e) { fns.forEach(f => f.error && f.error(wErr(e))); }
+    }
+    function schedule(col) { clearTimeout(timers.get(col)); timers.set(col, setTimeout(() => refresh(col), 250)); }
+    sb.channel('docs-changes').on('postgres_changes', { event: '*', schema: 'public', table: T }, p => {
+      const col = (p.new && p.new.collection) || (p.old && p.old.collection);
+      if (col) schedule(col); else listeners.forEach((_, c) => schedule(c));
+    }).subscribe();
+    setInterval(() => listeners.forEach((_, c) => refresh(c)), 60000); // 실시간이 끊겨도 1분마다 새로고침
+    function docRef(col, id) {
+      return {
+        id, path: col + '/' + id,
+        async get() {
+          const { data, error } = await sb.from(T).select('data').eq('collection', col).eq('id', id).maybeSingle();
+          if (error) throw wErr(error);
+          return snapDoc(id, data ? data.data : undefined);
+        },
+        async set(d) {
+          const { error } = await sb.from(T).upsert({ collection: col, id, data: d, updated_at: new Date().toISOString() });
+          if (error) throw wErr(error); schedule(col);
+        },
+        async update(d) {
+          const cur = await this.get();
+          if (!cur.exists) throw { code: 'invalid_argument', message: 'not found' };
+          await this.set({ ...cur.data(), ...d });
+        },
+        async delete() {
+          const { error } = await sb.from(T).delete().eq('collection', col).eq('id', id);
+          if (error) throw wErr(error); schedule(col);
+        },
+        onSnapshot(next, error) {
+          return collRef(col).onSnapshot(s => next(s.docs.find(x => x.id === id) || snapDoc(id, undefined)), error);
+        },
+      };
+    }
+    function collRef(col) {
+      return {
+        path: col,
+        doc: id => docRef(col, id || rid(10)),
+        async add(d) { const r = docRef(col, rid(10)); await r.set(d); return r; },
+        onSnapshot(next, error) {
+          if (!listeners.has(col)) listeners.set(col, new Set());
+          const l = { next, error }; listeners.get(col).add(l); refresh(col);
+          return () => listeners.get(col).delete(l);
+        },
+      };
+    }
+    return { doc: p => { const [c, i] = p.split('/'); return docRef(c, i); }, collection: collRef };
+  }
+  const assetsShim = {
+    async upload(file, opts, code) {
+      // 보관함 안에서 리콜번호 폴더별로 정리: RC5496637/20261125_ab12cd34.pdf
+      const d = new Date(), ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      const id = `${String(code || 'etc').replace(/[^A-Za-z0-9]/g, '')}/${ymd}_${rid(4)}`;
+      const { error } = await sb.storage.from(PDF_BUCKET).upload(id + '.pdf', file, { contentType: 'application/pdf', upsert: false });
+      if (error) throw { code: /size|exceed|large/i.test(error.message) ? 'too_large' : 'upstream_error', message: error.message };
+      return { id, url: pdfUrl(id) };
+    },
+  };
+
+  // ---------- 로그인 ----------
+  function showLogin() {
+    document.body.classList.add('locked'); $('#login').hidden = false;
+    setTimeout(() => $('#l-id').focus(), 0);
+  }
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = $('#l-id').value.trim(), pw = $('#l-pw').value, err = $('#l-err'), btn = $('#l-btn');
+    if (!id || !pw) { err.textContent = '아이디와 비밀번호를 입력하세요'; return; }
+    btn.disabled = true; err.textContent = '';
+    const email = id.includes('@') ? id : id + ID_DOMAIN;
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    btn.disabled = false;
+    if (error) { err.textContent = '아이디 또는 비밀번호가 맞지 않습니다'; $('#l-pw').select(); return; }
+    $('#login').hidden = true; document.body.classList.remove('locked');
+    startApp(data.session);
+  });
+  $('#logout').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+
+  // ---------- boot ----------
+  (async () => {
+    if (!window.supabase || !CFG.SUPABASE_URL || /YOUR_/.test(CFG.SUPABASE_URL + CFG.SUPABASE_ANON_KEY)) {
+      $('#sync').textContent = '설정 필요';
+      const n = $('#notice'); n.textContent = 'config.js에 Supabase 주소와 키를 넣어야 합니다. 설정방법.md를 확인하세요.'; n.hidden = false;
+      offline(); return;
+    }
+    sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { showLogin(); return; }
+    startApp(session);
+  })();
+
+  let started = false;
+  function startApp(session) {
+    if (started) return; started = true;
+    db = makeDb(sb); assets = assetsShim; state.canUpload = true; $('#dzPanel').hidden = false;
+    const email = (session && session.user && session.user.email) || '';
+    $('#who').textContent = email.endsWith(ID_DOMAIN) ? email.slice(0, -ID_DOMAIN.length) : email;
+    $('#logout').hidden = false;
+
+    const timer = setTimeout(() => { $('#sync').textContent = '저장소에 아직 연결되지 않았습니다'; }, 10000);
+    let fresh = { r: false, c: false };
+    const mark = () => { if (fresh.r && fresh.c) { clearTimeout(timer); $('#sync').textContent = '실시간 공유 중'; } };
+
+    db.collection('recalls').onSnapshot(snap => {
+      state.recalls = new Map(snap.docs.map(d => { const v = d.data(); return [d.id, { ...v, code: d.id }]; }));
+      state.loaded.c = true; fresh.c = true; mark();
+      renderRc(); renderRes(); updateLookup(); renderS09();
+    }, () => { clearTimeout(timer); $('#sync').textContent = '리콜 목록을 불러오지 못했습니다'; });
+
+    let lastChunks = [];
+    db.doc('stock/meta').onSnapshot(snap => {
+      s09.meta = snap.exists ? snap.data() : null;
+      rebuildS09(lastChunks);
+    }, () => {});
+    db.collection('stockparts').onSnapshot(snap => { lastChunks = snap.docs; rebuildS09(lastChunks); }, () => {});
+
+    db.collection('reservations').onSnapshot(snap => {
+      state.reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      state.loaded.r = true; fresh.r = true; mark();
+      renderRes(); renderRc();
+    }, () => { clearTimeout(timer); $('#sync').textContent = '예약 목록을 불러오지 못했습니다'; });
+  }
+
+  function offline() {
+    $('#resBody').innerHTML = '<tr><td colspan="9" class="empty">공유 저장소에 연결할 수 없어 예약 목록을 표시하지 못했습니다.</td></tr>';
+    $('#rcBody').innerHTML = '<tr><td colspan="6" class="empty">공유 저장소에 연결할 수 없어 리콜 목록을 표시하지 못했습니다.</td></tr>';
+  }
+})();
+</script>
+</body>
+</html>
