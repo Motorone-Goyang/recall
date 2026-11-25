@@ -670,7 +670,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}${titleHtml(rc)}</td>
         <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
         <td class="nowrap">${esc(r.plate)}</td>
-        <td>${stockCell(rc, r.stock, { kind: 'res', id: r.id })}${s09Html(rc)}</td>
+        <td>${stockCell(rc, r.stock)}</td>
         <td class="parts">${partsCell(rc, 'res:' + r.id)}</td>
         <td>${esc(r.note)}</td>
         <td>${pdfLink(rc)}</td>
