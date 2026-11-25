@@ -1054,6 +1054,11 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const email = (session && session.user && session.user.email) || '';
     $('#who').textContent = email.endsWith(ID_DOMAIN) ? email.slice(0, -ID_DOMAIN.length) : email;
     $('#logout').hidden = false;
+    // S09 재고 탭은 지정한 아이디에만 보임 (다른 아이디도 재고 표시는 그대로 봄)
+    const S09_USERS = ['goyang@motorone.co.kr'];
+    const canS09 = S09_USERS.includes(email.toLowerCase());
+    $('#tab-s09').hidden = !canS09;
+    if (!canS09) $('#view-s09').hidden = true;
 
     const timer = setTimeout(() => { $('#sync').textContent = '저장소에 아직 연결되지 않았습니다'; }, 10000);
     let fresh = { r: false, c: false };
