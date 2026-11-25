@@ -100,6 +100,8 @@ td.row-act{white-space:nowrap;text-align:right}
 .dropzone{display:grid;gap:6px;place-items:center;text-align:center;border:2px dashed var(--line);border-radius:8px;padding:28px 16px;cursor:pointer;color:var(--muted);font-size:.85rem;font-weight:500;letter-spacing:0;background:var(--bg)}
 .dropzone strong{color:var(--fg);font-size:1rem}
 .dropzone.over{border-color:var(--accent);background:var(--accent-soft)}
+.dropzone.rcpdf{padding:18px 16px}
+.dropzone.has{border-style:solid;border-color:var(--ok);background:var(--ok-soft)}
 tr.drop td{background:var(--accent-soft)!important;box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
 td.parts{min-width:220px;max-width:300px}
 .plist{display:grid;gap:4px}
@@ -225,8 +227,14 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     <section class="panel">
       <h2 id="rcFormTitle">리콜 추가</h2>
       <form id="rcForm" class="form" autocomplete="off">
+        <label class="dropzone rcpdf" id="r-pdfZone" style="grid-column:span 2">
+          <input type="file" id="r-pdf" accept="application/pdf,.pdf" hidden>
+          <strong id="r-pdfLabel">리콜 PDF를 끌어다 놓거나 클릭해서 고르세요</strong>
+          <span id="r-pdfInfo">PDF만 넣으면 리콜번호·작업 제목·부품번호를 자동으로 채웁니다.</span>
+        </label>
         <label>리콜번호
           <input id="r-code" class="mono" placeholder="RC0000000" required>
+          <span class="hint" id="h-code"></span>
         </label>
         <label id="r-stockWrap" hidden>재고현황 (직접 지정)
           <select id="r-stock">
@@ -235,9 +243,6 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
             <option value="주문 필요">주문 필요</option>
             <option value="재고 문의">재고 문의</option>
           </select>
-        </label>
-        <label style="grid-column:span 2">부품번호 / 작업내용
-          <textarea id="r-part" rows="2" placeholder="A000 998 86 06"></textarea>
         </label>
         <div class="actions">
           <button class="btn primary" type="submit">리콜 저장</button>
@@ -573,7 +578,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const b = e.target.closest('button[data-redit]'); if (!b) return;
     const r = state.recalls.get(b.dataset.redit); if (!r) return;
     state.editingRc = r.code;
-    $('#r-code').value = r.code; $('#r-code').readOnly = true; $('#r-stock').value = r.stockOverride || ''; $('#r-part').value = r.part || '';
+    $('#r-code').value = r.code; $('#r-code').readOnly = true; $('#r-stock').value = r.stockOverride || ''; clearRcPdf();
     $('#rcFormTitle').textContent = '리콜 수정 · ' + r.code; $('#rcCancel').hidden = false;
     $('#rcForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -642,12 +647,15 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       const dup = parts.find(x => x.no === no);
       if (!dup) parts.push(item);
     }
-    return { parts: parts.slice(0, 100), starred, title, sw };
+    const cm = (ci >= 0 ? lines[ci] : '').match(/Code\s*:\s*([0-9]{2}P([0-9]{7}))/i);
+    return { parts: parts.slice(0, 100), starred, title, sw, code: cm ? cm[1].toUpperCase() : '', digits: cm ? cm[2] : '' };
   }
   async function readPdfParts(buf) {
+    readPdfParts.last = null;
     try {
-      const { parts, starred, title, sw } = await extractParts(buf);
+      const { parts, starred, title, sw, code, digits } = await extractParts(buf);
       const pdfTitle = title;
+      if (code) readPdfParts.last = { code, digits };
       if (parts.length) return { pdfParts: parts, pdfPartsStatus: 'ok', pdfTitle };
       if (starred.length) return { pdfParts: starred, pdfPartsStatus: 'vin', pdfTitle };
       if (sw) return { pdfParts: [], pdfPartsStatus: 'sw', pdfTitle };
@@ -766,22 +774,76 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     out.innerHTML = lines.map(([c, t]) => `<div class="hint ${c}">${esc(t)}</div>`).join('');
   }
   function resetRc() {
-    state.editingRc = null; $('#rcForm').reset(); $('#r-code').readOnly = false;
+    state.editingRc = null; $('#rcForm').reset(); $('#r-code').readOnly = false; clearRcPdf(); $('#h-code').textContent = '';
     $('#rcFormTitle').textContent = '리콜 추가'; $('#rcCancel').hidden = true; $('#h-rc').textContent = '';
   }
   $('#rcCancel').addEventListener('click', resetRc);
+  // 리콜 추가: PDF를 넣으면 리콜번호를 자동으로 채움
+  const rcPdf = { file: null, parsed: null };
+  function clearRcPdf() {
+    rcPdf.file = null; rcPdf.parsed = null; $('#r-pdf').value = '';
+    $('#r-pdfZone').classList.remove('has');
+    $('#r-pdfLabel').textContent = '리콜 PDF를 끌어다 놓거나 클릭해서 고르세요';
+    $('#r-pdfInfo').textContent = 'PDF만 넣으면 리콜번호·작업 제목·부품번호를 자동으로 채웁니다.';
+  }
+  function guessCode(fileName, info) {
+    const m = norm(fileName).match(/(RC|SM)\d{7}/); if (m) return { code: m[0], how: '파일 이름' };
+    const d = (info && info.digits) || ((fileName.match(/^\s*(\d{7})(?!\d)/) || [])[1]);
+    if (!d) return null;
+    const hits = [...state.recalls.keys()].filter(k => k.endsWith(d));
+    if (hits.length === 1) return { code: hits[0], how: '리콜 목록' };
+    if (hits.length > 1) return { code: '', how: hits.join(', ') + ' 중 하나' };
+    return { code: 'RC' + d, how: 'PDF 코드 ' + (info ? info.code : d) + ' — RC/SM이 맞는지 확인하세요' };
+  }
+  async function pickRcPdf(f) {
+    if (!f) return;
+    if (!isPdf(f)) { toast(f.name + ': PDF 파일만 넣을 수 있습니다'); return; }
+    rcPdf.file = f; rcPdf.parsed = null;
+    $('#r-pdfZone').classList.add('has'); $('#r-pdfLabel').textContent = f.name; $('#r-pdfInfo').textContent = 'PDF 읽는 중…';
+    const parsed = await readPdfParts(await f.arrayBuffer());
+    const info = readPdfParts.last;
+    if (rcPdf.file !== f) return;
+    rcPdf.parsed = parsed;
+    const st = { ok: '부품 ' + parsed.pdfParts.length + '개', vin: '차대번호별 확인 (XENTRY)', sw: '소프트웨어 업데이트', none: '부품번호 확인 불가', error: 'PDF 읽기 실패' }[parsed.pdfPartsStatus];
+    $('#r-pdfInfo').textContent = [parsed.pdfTitle, st].filter(Boolean).join(' · ');
+    if (!state.editingRc) {
+      const g = guessCode(f.name, info), hc = $('#h-code');
+      if (g && g.code) {
+        $('#r-code').value = g.code;
+        const exists = state.recalls.has(g.code);
+        hc.textContent = exists ? '이미 있는 리콜 — 저장하면 PDF만 바뀝니다' : g.how + '에서 읽음';
+        hc.className = 'hint ' + (exists ? '' : /확인하세요/.test(g.how) ? 'err' : 'ok');
+      } else { hc.textContent = g ? g.how + ' — 직접 골라 입력하세요' : 'PDF에서 리콜번호를 찾지 못했습니다. 직접 입력하세요'; hc.className = 'hint err'; }
+    }
+  }
+  $('#r-pdf').addEventListener('change', e => pickRcPdf(e.target.files[0]));
+  const rz = $('#r-pdfZone');
+  ['dragenter', 'dragover'].forEach(t => rz.addEventListener(t, e => { if (!hasFiles(e)) return; e.preventDefault(); rz.classList.add('over'); }));
+  rz.addEventListener('dragleave', e => { if (!rz.contains(e.relatedTarget)) rz.classList.remove('over'); });
+  rz.addEventListener('drop', e => { e.preventDefault(); rz.classList.remove('over'); pickRcPdf(e.dataTransfer.files[0]); });
   $('#rcForm').addEventListener('submit', async e => {
     e.preventDefault();
     const h = $('#h-rc'), code = norm($('#r-code').value);
     if (!db) { h.textContent = '저장소에 연결되지 않아 저장할 수 없습니다'; h.className = 'hint err'; return; }
     if (!/^[A-Z0-9]{3,30}$/.test(code)) { h.textContent = '리콜번호는 영문·숫자로 입력해 주세요'; h.className = 'hint err'; return; }
-    if (!state.editingRc && state.recalls.has(code)) { h.textContent = '이미 있는 리콜번호입니다. 목록에서 수정을 눌러 주세요'; h.className = 'hint err'; return; }
+    if (!state.editingRc && state.recalls.has(code) && !rcPdf.file) { h.textContent = '이미 있는 리콜번호입니다. PDF를 넣으면 PDF만 바꿉니다'; h.className = 'hint err'; return; }
     const prev = state.recalls.get(code) || {};
     // 기존 PDF·제목·부품 정보는 그대로 두고 부품 메모(와 goyang 계정의 재고 지정)만 바꿈
-    const data = { ...prev, code, part: $('#r-part').value.trim() };
+    const data = { ...prev, code };
     if (state.isAdmin) data.stockOverride = $('#r-stock').value;
-    try { await db.doc('recalls/' + code).set(data); toast(state.editingRc ? '리콜을 수정했습니다' : '리콜을 추가했습니다'); resetRc(); }
-    catch (err) { h.textContent = writeErr(err); h.className = 'hint err'; }
+    const pick = rcPdf.file;
+    const btn = e.submitter || $('#rcForm button[type=submit]'); btn.disabled = true;
+    try {
+      if (pick) {
+        h.textContent = 'PDF 올리는 중…'; h.className = 'hint';
+        const res = await assets.upload(pick, { type: 'application/pdf' }, code);
+        Object.assign(data, { pdf: res.id, pdfName: pick.name, ...rcPdf.parsed });
+      }
+      await db.doc('recalls/' + code).set(data);
+      toast((state.editingRc || prev.code ? '리콜을 수정했습니다' : '리콜을 추가했습니다') + (pick ? ' · PDF 저장' : ''));
+      resetRc();
+    } catch (err) { h.textContent = err && err.code === 'too_large' ? '50MB 이하 PDF만 올릴 수 있습니다' : writeErr(err); h.className = 'hint err'; }
+    finally { btn.disabled = false; }
   });
 
   function setReadOnly() {
