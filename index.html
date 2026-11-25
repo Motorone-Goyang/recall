@@ -280,7 +280,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <div class="tbl">
         <table>
           <thead><tr>
-            <th>리콜번호</th><th>예약 대수</th><th>재고현황</th><th>부품번호 / 작업내용</th><th>PDF</th><th></th>
+            <th>리콜번호</th><th id="cntHead">예약 대수</th><th>재고현황</th><th>부품번호 / 작업내용</th><th>PDF</th><th></th>
           </tr></thead>
           <tbody id="rcBody"><tr><td colspan="6" class="empty">리콜 목록을 불러오는 중입니다…</td></tr></tbody>
         </table>
@@ -494,7 +494,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 
   // ---------- reservation table ----------
   document.querySelectorAll('#resFilter button').forEach(b => b.addEventListener('click', () => {
-    state.filter = b.dataset.f;
+    state.filter = b.dataset.f; renderRc();
     document.querySelectorAll('#resFilter button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     renderRes();
   }));
@@ -563,7 +563,14 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 
   // ---------- recall master ----------
   $('#q-rc').addEventListener('input', renderRc);
-  function counts() { const m = new Map(); state.reservations.forEach(r => m.set(r.recall, (m.get(r.recall) || 0) + 1)); return m; }
+  // 예약 리스트에서 고른 범위(오늘 이후 / 전체 / 지난 예약)와 같은 기준으로 셈
+  function counts() {
+    const m = new Map(), t = today();
+    state.reservations.filter(r => state.filter === 'up' ? (r.date || '') >= t : state.filter === 'past' ? (r.date || '') < t : true)
+      .forEach(r => { const k = norm(r.recall); m.set(k, (m.get(k) || 0) + 1); });
+    $('#cntHead').textContent = '예약 대수 (' + ({ up: '오늘 이후', all: '전체', past: '지난 예약' }[state.filter]) + ')';
+    return m;
+  }
   function renderRc() {
     if (!state.loaded.c) return;
     const body = $('#rcBody'), q = norm($('#q-rc').value), cnt = counts();
