@@ -83,7 +83,10 @@ tr.past td{color:var(--muted)}
 tr.today td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 tr.checked td{background:var(--ok-soft)}
 .ck{display:inline-flex;align-items:center;gap:4px;margin-right:6px;vertical-align:middle;cursor:pointer}
-.ck input{width:16px;height:16px;margin:0;accent-color:var(--ok);cursor:pointer}
+.ck input{width:20px;height:20px;margin:0;accent-color:var(--ok);cursor:pointer}
+td.ckcell{text-align:center;width:44px}
+td.ckcell .ck{margin:0;padding:6px}
+tr.checked td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
 td.mono,.mono{font-family:var(--f-mono);font-size:.82rem}
 td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 td.part{white-space:pre-line;font-family:var(--f-mono);font-size:.8rem;max-width:260px}
@@ -217,7 +220,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <div class="tbl">
         <table>
           <thead><tr>
-            <th>예약날짜</th><th>리콜번호</th><th>차대번호</th><th>차량번호</th><th>재고현황</th><th>부품번호</th><th>비고</th><th>PDF</th><th></th>
+            <th id="ckHead" hidden style="width:44px;text-align:center">확인</th><th>예약날짜</th><th>리콜번호</th><th>차대번호</th><th>차량번호</th><th>재고현황</th><th>부품번호</th><th>비고</th><th>PDF</th><th></th>
           </tr></thead>
           <tbody id="resBody"><tr><td colspan="9" class="empty">예약 목록을 불러오는 중입니다…</td></tr></tbody>
         </table>
@@ -510,7 +513,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     rows.sort((a, b) => state.filter === 'past' ? (b.date || '').localeCompare(a.date || '') : (a.date || '').localeCompare(b.date || ''));
     $('#resCount').textContent = `${rows.length}건 표시 · 전체 ${state.reservations.length}건`;
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="9" class="empty">${state.reservations.length ? '조건에 맞는 예약이 없습니다' : '아직 예약이 없습니다. 위 양식에서 첫 예약을 등록하세요.'}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${state.isAdmin ? 10 : 9}" class="empty">${state.reservations.length ? '조건에 맞는 예약이 없습니다' : '아직 예약이 없습니다. 위 양식에서 첫 예약을 등록하세요.'}</td></tr>`;
       return;
     }
     body.innerHTML = rows.map(r => {
@@ -518,12 +521,12 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       const v = vinCheck(r.vin);
       const cls = (r.date < t ? 'past' : '') + (r.date === t ? ' today' : '') + (r.checked ? ' checked' : '');
       // 확인 체크: goyang 계정에만 보임 (초록 배경은 모두에게 보임)
-      const ck = state.isAdmin ? `<label class="ck" title="확인 표시"><input type="checkbox" data-check="${esc(r.id)}"${r.checked ? ' checked' : ''}></label>` : '';
+      const ck = state.isAdmin ? `<td class="ckcell"><label class="ck" title="확인 표시"><input type="checkbox" data-check="${esc(r.id)}"${r.checked ? ' checked' : ''}></label></td>` : '';
       const act = !state.canWrite ? '' : state.confirmDel === r.id
         ? `<span class="confirm">삭제할까요? <button class="btn sm danger" data-del="${esc(r.id)}">삭제</button><button class="btn sm" data-nodel>취소</button></span>`
         : `<button class="btn sm" data-edit="${esc(r.id)}">수정</button> <button class="btn sm" data-ask="${esc(r.id)}">삭제</button>`;
       return `<tr class="${cls}">
-        <td class="num">${ck}${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}</td>
+        ${ck}<td class="num">${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}</td>
         <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}${titleHtml(rc)}</td>
         <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
         <td>${esc(r.plate)}</td>
@@ -1183,7 +1186,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     $('#tab-s09').hidden = !canS09;
     if (!canS09) $('#view-s09').hidden = true;
     // 재고현황 직접 지정도 같은 아이디만
-    state.isAdmin = canS09;
+    state.isAdmin = canS09; $('#ckHead').hidden = !canS09;
     $('#f-stockWrap').hidden = !canS09; $('#r-stockWrap').hidden = !canS09;
     setupNotify();
 
