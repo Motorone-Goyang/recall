@@ -69,10 +69,23 @@ a.pdf{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.
 a.pdf:hover{background:var(--accent-soft)}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .toolbar input{max-width:260px}
-.filters{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:-4px 0 12px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:.8rem;color:var(--muted)}
-.filters label{display:inline-flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap}
-.filters select,.filters input{font:inherit;font-size:.8rem;font-weight:400;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--fg);max-width:180px;width:auto}
-.filters select.on,.filters input.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.cfb{font:inherit;font-size:.7rem;line-height:1;margin-left:4px;padding:2px 4px;border:1px solid var(--line);border-radius:3px;background:var(--surface);color:var(--muted);cursor:pointer;vertical-align:middle}
+.cfb:hover{color:var(--fg);border-color:var(--muted)}
+.cfb.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#cfPop{position:fixed;z-index:50;width:260px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;font-size:.84rem;font-weight:400;letter-spacing:0}
+#cfPop .cf-sort button,#cfPop .cf-clear{display:block;width:100%;text-align:left;font:inherit;background:none;border:0;padding:6px 8px;border-radius:4px;color:var(--fg);cursor:pointer}
+#cfPop .cf-sort button:hover,#cfPop .cf-clear:hover:not(:disabled){background:var(--bg)}
+#cfPop .cf-sort button.on{color:var(--accent);font-weight:600}
+#cfPop .cf-clear:disabled{color:var(--muted);cursor:default}
+#cfPop hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+#cfPop input[type=search]{width:100%;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg);margin-bottom:6px}
+#cfPop .cf-list{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:4px;padding:4px 0}
+#cfPop .cf-list label{display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}
+#cfPop .cf-list label:hover{background:var(--bg)}
+#cfPop .cf-list label span{overflow:hidden;text-overflow:ellipsis;flex:1;color:var(--fg);font-weight:400;font-size:.84rem}
+#cfPop .cf-list input{width:16px;height:16px;flex:none;padding:0;margin:0;accent-color:var(--accent)}
+#cfPop .cf-list label em{font-style:normal;color:var(--muted);font-size:.75rem}
+#cfPop .cf-act{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 td.nowrap{white-space:nowrap}
 .toolbar .count{margin-left:auto;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
@@ -222,19 +235,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         </div>
         <span class="count" id="resCount"></span>
       </div>
-      <div class="filters" id="resFilters">
-        <label>리콜번호 <select data-fk="recall"><option value="">전체</option></select></label>
-        <label>재고현황 <select data-fk="stock"><option value="">전체</option><option>자체재고</option><option>주문 필요</option><option>재고 문의</option><option>부품 불필요</option></select></label>
-        <label>확인 <select data-fk="checked"><option value="">전체</option><option value="y">확인함</option><option value="n">확인 안 함</option></select></label>
-        <label>날짜 <input type="date" data-fk="from"> ~ <input type="date" data-fk="to"></label>
-        <label>PDF <select data-fk="pdf"><option value="">전체</option><option value="y">있음</option><option value="n">없음</option></select></label>
-        <label>정렬 <select data-fk="sort"><option value="">날짜 순</option><option value="dateDesc">날짜 최신 순</option><option value="recall">리콜번호 순</option><option value="stock">재고현황 순</option></select></label>
-        <button type="button" class="btn sm" data-freset>필터 초기화</button>
-      </div>
       <div class="tbl">
         <table>
           <thead><tr>
-            <th id="ckHead" hidden style="width:44px;text-align:center">확인</th><th>예약날짜</th><th>리콜번호</th><th>차대번호</th><th>차량번호</th><th>재고현황</th><th>부품번호</th><th>비고</th><th>PDF</th><th></th>
+            <th id="ckHead" hidden style="width:60px" data-col="res:checked">확인</th><th data-col="res:date">예약날짜</th><th data-col="res:recall">리콜번호</th><th data-col="res:vin">차대번호</th><th data-col="res:plate">차량번호</th><th data-col="res:stock">재고현황</th><th data-col="res:parts">부품번호</th><th data-col="res:note">비고</th><th data-col="res:pdf">PDF</th><th></th>
           </tr></thead>
           <tbody id="resBody"><tr><td colspan="9" class="empty">예약 목록을 불러오는 중입니다…</td></tr></tbody>
         </table>
@@ -294,18 +298,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         </div>
         <span class="count" id="rcCount"></span>
       </div>
-      <div class="filters" id="rcFilters">
-        <label>재고현황 <select data-fk="stock"><option value="">전체</option><option>자체재고</option><option>주문 필요</option><option>재고 문의</option><option>부품 불필요</option></select></label>
-        <label>예약 <select data-fk="res"><option value="">전체</option><option value="y">예약 있음</option><option value="n">예약 없음</option></select></label>
-        <label>부품번호 <select data-fk="parts"><option value="">전체</option><option value="ok">부품번호 있음</option><option value="none">확인 불가</option><option value="vin">XENTRY 확인</option><option value="sw">소프트웨어 업데이트</option><option value="nopdf">PDF 없음</option></select></label>
-        <label>종류 <select data-fk="kind"><option value="">전체</option><option value="RC">RC</option><option value="SM">SM</option></select></label>
-        <label>정렬 <select data-fk="sort"><option value="">예약 많은 순</option><option value="code">리콜번호 순</option><option value="stock">재고현황 순</option></select></label>
-        <button type="button" class="btn sm" data-freset>필터 초기화</button>
-      </div>
       <div class="tbl">
         <table>
           <thead><tr>
-            <th>리콜번호</th><th id="cntHead">예약 대수</th><th>재고현황</th><th>부품번호 / 작업내용</th><th>PDF</th><th></th>
+            <th data-col="rc:code">리콜번호</th><th id="cntHead" data-col="rc:count">예약 대수</th><th data-col="rc:stock">재고현황</th><th data-col="rc:parts">부품번호 / 작업내용</th><th data-col="rc:pdf">PDF</th><th></th>
           </tr></thead>
           <tbody id="rcBody"><tr><td colspan="6" class="empty">리콜 목록을 불러오는 중입니다…</td></tr></tbody>
         </table>
@@ -537,52 +533,124 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   }));
   $('#q-res').addEventListener('input', renderRes);
 
-  // ---------- 필터 (예약 리스트 · 리콜 목록) ----------
-  function readFilters(sel) {
-    const o = {};
-    document.querySelectorAll(sel + ' [data-fk]').forEach(el => { o[el.dataset.fk] = el.value; el.classList.toggle('on', !!el.value); });
-    return o;
+  // ---------- 엑셀식 열 필터 (예약 리스트 · 리콜 목록) ----------
+  const EMPTY = '(비어 있음)';
+  const PART_LABEL = { ok: '부품번호 있음', none: '부품번호 확인 불가', vin: 'XENTRY 확인', sw: '소프트웨어 업데이트', nopdf: 'PDF 없음', error: 'PDF 읽기 실패', unread: '미확인' };
+  const val = v => (v === undefined || v === null || String(v).trim() === '') ? EMPTY : String(v).trim();
+  const COLS = {
+    res: {
+      checked: r => r.checked ? '확인함' : '확인 안 함',
+      date: r => val(r.date),
+      recall: r => val(r.recall),
+      vin: r => val(r.vin),
+      plate: r => val(r.plate),
+      stock: r => stockLabel(state.recalls.get(r.recall), r.stock),
+      parts: r => PART_LABEL[partState(state.recalls.get(r.recall))] || '미확인',
+      note: r => val(r.note),
+      pdf: r => blobOk((state.recalls.get(r.recall) || {}).pdf) ? 'PDF 있음' : 'PDF 없음',
+    },
+    rc: {
+      code: r => r.code,
+      count: r => (counts().get(r.code) || 0) + '대',
+      stock: r => stockLabel(r),
+      parts: r => PART_LABEL[partState(r)] || '미확인',
+      pdf: r => blobOk(r.pdf) ? 'PDF 있음' : 'PDF 없음',
+    },
+  };
+  const CF = { res: { f: {}, sort: null, base: [] }, rc: { f: {}, sort: null, base: [] } };
+  const cmp = (a, b) => (a === EMPTY) - (b === EMPTY) || a.localeCompare(b, 'ko', { numeric: true });
+  function colFilter(tbl, rows, except) {
+    const cols = COLS[tbl], f = CF[tbl].f;
+    return rows.filter(r => Object.keys(f).every(k => k === except || !f[k] || f[k].has(cols[k](r))));
   }
-  [['#resFilters', () => renderRes()], ['#rcFilters', () => renderRc()]].forEach(([sel, fn]) => {
-    const box = $(sel);
-    box.addEventListener('change', fn);
-    box.addEventListener('input', e => { if (e.target.type === 'date') fn(); });
-    box.querySelector('[data-freset]').addEventListener('click', () => { box.querySelectorAll('[data-fk]').forEach(el => { el.value = ''; }); fn(); });
+  function colSort(tbl, rows) {
+    const s = CF[tbl].sort; if (!s) return false;
+    const fn = COLS[tbl][s.key]; rows.sort((a, b) => cmp(fn(a), fn(b)) * s.dir); return true;
+  }
+  function paintCfb() {
+    document.querySelectorAll('.cfb').forEach(b => {
+      const [t, k] = b.dataset.cf.split(':'), on = !!CF[t].f[k] || (CF[t].sort && CF[t].sort.key === k);
+      b.classList.toggle('on', on);
+      b.textContent = CF[t].sort && CF[t].sort.key === k ? (CF[t].sort.dir > 0 ? '▲' : '▼') + (CF[t].f[k] ? '▾' : '') : '▾';
+      b.title = CF[t].f[k] ? '필터 적용 중' : '필터 · 정렬';
+    });
+  }
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    const label = th.innerHTML; th.innerHTML = '';
+    const sp = document.createElement('span'); sp.className = 'cft'; sp.innerHTML = label;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'cfb'; b.dataset.cf = th.dataset.col; b.textContent = '▾';
+    th.append(sp, b);
   });
-  // 리콜번호 필터 목록: 예약에 있는 리콜번호만
-  function fillRecallFilter() {
-    const s = $('#resFilters [data-fk="recall"]'), cur = s.value;
-    const codes = [...new Set(state.reservations.map(r => r.recall).filter(Boolean))].sort();
-    s.innerHTML = '<option value="">전체</option>' + codes.map(c => {
-      const t = (state.recalls.get(c) || {}).pdfTitle;
-      return `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}${t ? ' · ' + esc(t.slice(0, 18)) : ''}</option>`;
-    }).join('');
+  const rerender = t => t === 'res' ? renderRes() : renderRc();
+  const pop = document.createElement('div'); pop.id = 'cfPop'; pop.hidden = true; document.body.appendChild(pop);
+  let popFor = null;
+  function closePop() { pop.hidden = true; popFor = null; }
+  function openPop(btn) {
+    const [t, k] = btn.dataset.cf.split(':');
+    if (popFor === btn.dataset.cf) { closePop(); return; }
+    popFor = btn.dataset.cf;
+    const fn = COLS[t][k], cur = CF[t].f[k];
+    const cnt = new Map();
+    colFilter(t, CF[t].base, k).forEach(r => { const v = fn(r); cnt.set(v, (cnt.get(v) || 0) + 1); });
+    if (cur) cur.forEach(v => { if (!cnt.has(v)) cnt.set(v, 0); });
+    const vals = [...cnt.keys()].sort(cmp);
+    const s = CF[t].sort && CF[t].sort.key === k ? CF[t].sort.dir : 0;
+    const name = btn.parentElement.querySelector('.cft').textContent;
+    pop.innerHTML = `<div class="cf-sort"><button type="button" data-s="1" class="${s > 0 ? 'on' : ''}">↑ 오름차순 정렬</button><button type="button" data-s="-1" class="${s < 0 ? 'on' : ''}">↓ 내림차순 정렬</button></div>
+      <button type="button" class="cf-clear"${cur ? '' : ' disabled'}>"${esc(name)}"에서 필터 해제</button><hr>
+      <input type="search" placeholder="검색">
+      <div class="cf-list"><label><input type="checkbox" data-all><span>(모두 선택)</span></label>${vals.map((v, i) => `<label data-v="${i}"><input type="checkbox" value="${i}"${!cur || cur.has(v) ? ' checked' : ''}><span>${esc(v)}</span><em>${cnt.get(v)}</em></label>`).join('')}</div>
+      <div class="cf-act"><button type="button" class="btn sm primary" data-ok>확인</button><button type="button" class="btn sm" data-cancel>취소</button></div>`;
+    const all = pop.querySelector('[data-all]'), boxes = [...pop.querySelectorAll('.cf-list input[value]')], search = pop.querySelector('input[type=search]');
+    const visible = () => boxes.filter(b => !b.closest('label').hidden);
+    const syncAll = () => { const v = visible(); all.checked = v.length > 0 && v.every(b => b.checked); all.indeterminate = !all.checked && v.some(b => b.checked); };
+    syncAll();
+    all.addEventListener('change', () => { visible().forEach(b => b.checked = all.checked); });
+    boxes.forEach(b => b.addEventListener('change', syncAll));
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      boxes.forEach(b => { b.closest('label').hidden = !!q && !vals[b.value].toLowerCase().includes(q); if (q) b.checked = !b.closest('label').hidden; });
+      syncAll();
+    });
+    pop.querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', () => {
+      const d = Number(b.dataset.s); CF[t].sort = s === d ? null : { key: k, dir: d }; closePop(); rerender(t);
+    }));
+    pop.querySelector('.cf-clear').addEventListener('click', () => { delete CF[t].f[k]; closePop(); rerender(t); });
+    pop.querySelector('[data-cancel]').addEventListener('click', closePop);
+    pop.querySelector('[data-ok]').addEventListener('click', () => {
+      const pick = (search.value.trim() ? visible() : boxes).filter(b => b.checked).map(b => vals[b.value]);
+      if (!search.value.trim() && pick.length === vals.length) delete CF[t].f[k];
+      else CF[t].f[k] = new Set(pick);
+      closePop(); rerender(t);
+    });
+    search.addEventListener('keydown', e => { if (e.key === 'Enter') pop.querySelector('[data-ok]').click(); });
+    pop.hidden = false;
+    const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    pop.style.top = (r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+    search.focus();
   }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.cfb');
+    if (b) { e.stopPropagation(); openPop(b); return; }
+    if (!pop.hidden && !pop.contains(e.target)) closePop();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) closePop(); });
+  window.addEventListener('resize', closePop);
+  document.querySelector('.tbl') && document.querySelectorAll('.tbl').forEach(x => x.addEventListener('scroll', closePop));
 
   function renderRes() {
     const body = $('#resBody'), q = norm($('#q-res').value), t = today();
     if (!state.loaded.r) return;
-    fillRecallFilter();
     let rows = state.reservations.slice();
     if (state.filter === 'up') rows = rows.filter(r => (r.date || '') >= t);
     if (state.filter === 'past') rows = rows.filter(r => (r.date || '') < t);
     if (q) rows = rows.filter(r => [r.recall, r.vin, r.plate, r.note].some(v => norm(v).includes(q)));
-    // 필터
-    const f = readFilters('#resFilters');
-    if (f.recall) rows = rows.filter(r => r.recall === f.recall);
-    if (f.stock) rows = rows.filter(r => stockLabel(state.recalls.get(r.recall), r.stock) === f.stock);
-    if (f.checked) rows = rows.filter(r => !!r.checked === (f.checked === 'y'));
-    if (f.from) rows = rows.filter(r => (r.date || '') >= f.from);
-    if (f.to) rows = rows.filter(r => (r.date || '') <= f.to);
-    if (f.pdf) rows = rows.filter(r => blobOk((state.recalls.get(r.recall) || {}).pdf) === (f.pdf === 'y'));
+    CF.res.base = rows;
+    rows = colFilter('res', rows);
     const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
-    const sorters = {
-      '': (a, b) => state.filter === 'past' ? byDate(b, a) : byDate(a, b),
-      dateDesc: (a, b) => byDate(b, a),
-      recall: (a, b) => (a.recall || '').localeCompare(b.recall || '') || byDate(a, b),
-      stock: (a, b) => stockLabel(state.recalls.get(a.recall), a.stock).localeCompare(stockLabel(state.recalls.get(b.recall), b.stock)) || byDate(a, b),
-    };
-    rows.sort(sorters[f.sort] || sorters['']);
+    if (!colSort('res', rows)) rows.sort((a, b) => state.filter === 'past' ? byDate(b, a) : byDate(a, b));
+    paintCfb();
     $('#resCount').textContent = `${rows.length}건 표시 · 전체 ${state.reservations.length}건`;
     if (!rows.length) {
       body.innerHTML = `<tr><td colspan="${state.isAdmin ? 10 : 9}" class="empty">${state.reservations.length ? '조건에 맞는 예약이 없습니다' : '아직 예약이 없습니다. 위 양식에서 첫 예약을 등록하세요.'}</td></tr>`;
@@ -643,7 +711,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const m = new Map(), t = today();
     state.reservations.filter(r => state.filter === 'up' ? (r.date || '') >= t : state.filter === 'past' ? (r.date || '') < t : true)
       .forEach(r => { const k = norm(r.recall); m.set(k, (m.get(k) || 0) + 1); });
-    $('#cntHead').textContent = '예약 대수 (' + ({ up: '오늘 이후', all: '전체', past: '지난 예약' }[state.filter]) + ')';
+    $('#cntHead .cft').textContent = '예약 대수 (' + ({ up: '오늘 이후', all: '전체', past: '지난 예약' }[state.filter]) + ')';
     return m;
   }
   function renderRc() {
@@ -651,17 +719,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const body = $('#rcBody'), q = norm($('#q-rc').value), cnt = counts();
     let rows = [...state.recalls.values()];
     if (q) rows = rows.filter(r => norm(r.code).includes(q) || norm(r.part).includes(q) || norm(r.stock).includes(q));
-    const f = readFilters('#rcFilters');
-    if (f.stock) rows = rows.filter(r => stockLabel(r) === f.stock);
-    if (f.res) rows = rows.filter(r => (cnt.get(r.code) || 0) > 0 === (f.res === 'y'));
-    if (f.parts) rows = rows.filter(r => partState(r) === f.parts);
-    if (f.kind) rows = rows.filter(r => r.code.startsWith(f.kind));
-    const sorters = {
-      '': (a, b) => (cnt.get(b.code) || 0) - (cnt.get(a.code) || 0) || a.code.localeCompare(b.code),
-      code: (a, b) => a.code.localeCompare(b.code),
-      stock: (a, b) => stockLabel(a).localeCompare(stockLabel(b)) || a.code.localeCompare(b.code),
-    };
-    rows.sort(sorters[f.sort] || sorters['']);
+    CF.rc.base = rows;
+    rows = colFilter('rc', rows);
+    if (!colSort('rc', rows)) rows.sort((a, b) => (cnt.get(b.code) || 0) - (cnt.get(a.code) || 0) || a.code.localeCompare(b.code));
+    paintCfb();
     $('#rcCount').textContent = `${rows.length}건 표시 · 전체 ${state.recalls.size}건`;
     $('#recallList').innerHTML = [...state.recalls.keys()].sort().map(c => `<option value="${esc(c)}">`).join('');
     if (!rows.length) { body.innerHTML = `<tr><td colspan="6" class="empty">${state.recalls.size ? '검색 결과가 없습니다' : '등록된 리콜이 없습니다. 위 양식에서 리콜번호를 추가하세요.'}</td></tr>`; return; }
