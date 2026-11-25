@@ -882,6 +882,8 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 
   // ---------- Supabase 연결 (DB · PDF 저장 · 로그인) ----------
   const CFG = window.RECALL_CONFIG || {};
+  // 주소 뒤에 /rest/v1/ 등이 붙어 있어도 기본 주소만 사용
+  if (CFG.SUPABASE_URL) CFG.SUPABASE_URL = String(CFG.SUPABASE_URL).trim().replace(/^(https:\/\/[^/]+).*$/, '$1');
   const ID_DOMAIN = '@recall.app';     // 아이디 goyang → goyang@recall.app 로 로그인
   const PDF_BUCKET = 'recall-pdfs';
   let sb = null;
