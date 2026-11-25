@@ -111,6 +111,8 @@ td.parts{min-width:220px;max-width:300px}
 #lk-part{white-space:normal;font-family:var(--f-body)}
 .rtitle{display:block;margin-top:3px;font-family:var(--f-body);font-size:.78rem;font-weight:500;letter-spacing:0;color:var(--muted);white-space:normal;max-width:240px;line-height:1.35}
 .chip.sw{background:var(--accent-soft);color:var(--accent)}
+.stocksel{font:inherit;font-size:.76rem;margin-top:4px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg);display:block}
+#notifyBtn.on{color:var(--ok);border-color:var(--ok)}
 .s09meta{font-size:.88rem;color:var(--muted)}
 .s09meta strong{color:var(--fg)}
 .sub{margin:0 0 12px;font-size:.85rem;color:var(--muted)}
@@ -145,6 +147,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <button role="tab" id="tab-rc" aria-selected="false" data-view="rc">리콜 목록</button>
       <button role="tab" id="tab-s09" aria-selected="false" data-view="s09">S09 재고</button>
     </nav>
+    <button class="btn sm" id="notifyBtn" type="button" hidden>예약 알림 켜기</button>
     <span class="who" id="who"></span>
     <button class="btn sm" id="logout" type="button" hidden>로그아웃</button>
   </div>
@@ -172,9 +175,9 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         <label>차량번호
           <input id="f-plate" placeholder="12가3456">
         </label>
-        <label>재고현황
+        <label id="f-stockWrap" hidden>재고현황 (직접 지정)
           <select id="f-stock">
-            <option value="">리콜 목록 기준</option>
+            <option value="">자동 (S09 기준)</option>
             <option value="자체재고">자체재고</option>
             <option value="주문 필요">주문 필요</option>
             <option value="재고 문의">재고 문의</option>
@@ -225,8 +228,13 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         <label>리콜번호
           <input id="r-code" class="mono" placeholder="RC0000000" required>
         </label>
-        <label>재고현황
-          <input id="r-stock" placeholder="자체재고 / 국내재고 / 재고문의">
+        <label id="r-stockWrap" hidden>재고현황 (직접 지정)
+          <select id="r-stock">
+            <option value="">자동 (S09 기준)</option>
+            <option value="자체재고">자체재고</option>
+            <option value="주문 필요">주문 필요</option>
+            <option value="재고 문의">재고 문의</option>
+          </select>
         </label>
         <label style="grid-column:span 2">부품번호 / 작업내용
           <textarea id="r-part" rows="2" placeholder="A000 998 86 06"></textarea>
@@ -332,7 +340,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 (() => {
   const $ = s => document.querySelector(s);
   const state = { recalls: new Map(), reservations: [], canWrite: true, canUpload: false,
-                  editingRes: null, editingRc: null, filter: 'up', confirmDel: null, loaded: { r: false, c: false } };
+                  editingRes: null, editingRc: null, isAdmin: false, filter: 'up', confirmDel: null, loaded: { r: false, c: false } };
   let db = null, assets = null;
 
   // ---------- helpers ----------
@@ -351,12 +359,44 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (/국내|MBK|주문|필요/.test(t)) return { cls: 'order', label: '주문 필요' };
     return { cls: 'none', label: t };
   }
-  function stockCell(raw, override) {
-    if (override) { const k = stockKind(override); return `<span class="chip ${k.cls}">${esc(override)}</span><span class="stocknote">직접 지정</span>`; }
-    const k = stockKind(raw);
-    const note = raw && raw.replace(/\s/g,'') !== k.label.replace(/\s/g,'') ? `<span class="stocknote">${esc(raw)}</span>` : '';
-    return `<span class="chip ${k.cls}">${esc(k.label)}</span>${note}`;
+  // S09 기준 자동 판정: 재고 있음 → 자체재고, 없음 → 주문 필요, 부품번호를 모르면 → 재고 문의
+  const PARTRE = /[A-Z]\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2}/;
+  function autoStock(rc) {
+    if (!rc) return null;
+    if (rc.pdfPartsStatus === 'sw') return { cls: 'sw', label: '부품 불필요' };
+    const known = rc.pdfPartsStatus === 'ok' || PARTRE.test(rc.part || '');
+    if (!known) return { cls: 'ask', label: '재고 문의' };
+    if (!s09.meta) return null;
+    const m = s09Match(rc) || [];
+    if (m.length && m.every(h => h.qty > 0)) return { cls: 'own', label: '자체재고' };
+    return { cls: 'order', label: '주문 필요' };
   }
+  const STOCK_OPTS = ['자체재고', '주문 필요', '재고 문의'];
+  // rc: 리콜, resOverride: 예약별 지정값, sel: goyang 계정용 변경 칸 {kind:'res'|'rc', id}
+  function stockCell(rc, resOverride, sel) {
+    const over = resOverride || (rc && rc.stockOverride) || '';
+    let chip;
+    if (over) { const k = stockKind(over); chip = `<span class="chip ${k.cls}">${esc(over)}</span><span class="stocknote">${resOverride ? '이 예약만 직접 지정' : '직접 지정'}</span>`; }
+    else {
+      const a = autoStock(rc);
+      if (a) chip = `<span class="chip ${a.cls}">${esc(a.label)}</span>${s09.meta && (a.cls === 'own' || a.cls === 'order') ? '<span class="stocknote">S09 기준</span>' : ''}`;
+      else { const k = stockKind(rc ? rc.stock : ''); chip = `<span class="chip ${k.cls}">${esc(k.label)}</span>`; }
+    }
+    if (sel && state.isAdmin) {
+      const cur = sel.kind === 'res' ? (resOverride || '') : ((rc && rc.stockOverride) || '');
+      chip += `<select class="stocksel" data-sk="${sel.kind}" data-sid="${esc(sel.id)}" title="재고현황 직접 지정"><option value="">${sel.kind === 'res' ? '리콜 기준' : '자동 (S09)'}</option>${STOCK_OPTS.map(o => `<option${o === cur ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+    }
+    return chip;
+  }
+  document.addEventListener('change', async e => {
+    const el = e.target.closest && e.target.closest('select.stocksel'); if (!el || !state.isAdmin || !db) return;
+    el.disabled = true;
+    try {
+      if (el.dataset.sk === 'res') await db.doc('reservations/' + el.dataset.sid).update({ stock: el.value });
+      else await db.doc('recalls/' + el.dataset.sid).update({ stockOverride: el.value });
+      toast(el.value ? '재고현황을 ' + el.value + '(으)로 지정했습니다' : '재고현황을 자동으로 되돌렸습니다');
+    } catch (err) { toast(writeErr(err)); el.disabled = false; }
+  });
   function vinCheck(v) {
     const n = norm(v);
     if (!n) return { ok: false, msg: '' };
@@ -385,7 +425,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       $('#lk-part').textContent = '—'; $('#lk-stock').innerHTML = '—'; $('#lk-pdf').innerHTML = ''; return; }
     h.textContent = r.pdfTitle || '리콜 목록에서 찾았습니다'; h.className = 'hint ok';
     $('#lk-part').innerHTML = partsCell(r, 'lk') || '—';
-    $('#lk-stock').innerHTML = stockCell(r.stock, $('#f-stock').value) + s09Html(r);
+    $('#lk-stock').innerHTML = stockCell(r, $('#f-stock').value) + s09Html(r);
     $('#lk-pdf').innerHTML = pdfLink(r) || '<span class="k">PDF 없음</span>';
   }
   function updateVin() {
@@ -426,13 +466,13 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (!updateVin()) { hf.textContent = '차대번호 17자리를 확인해 주세요'; hf.className = 'hint err'; $('#f-vin').focus(); return; }
     const data = {
       date: $('#f-date').value, recall: norm($('#f-recall').value), vin: norm($('#f-vin').value),
-      plate: $('#f-plate').value.trim(), stock: $('#f-stock').value, note: $('#f-note').value.trim(),
+      plate: $('#f-plate').value.trim(), stock: state.isAdmin ? $('#f-stock').value : '', note: $('#f-note').value.trim(),
     };
     if (!data.date || !data.recall) { hf.textContent = '예약날짜와 리콜번호를 입력해 주세요'; hf.className = 'hint err'; return; }
     const btn = $('#saveRes'); btn.disabled = true;
     try {
       if (state.editingRes) { await db.doc('reservations/' + state.editingRes).set({ ...data, createdAt: (state.reservations.find(r => r.id === state.editingRes) || {}).createdAt || Date.now() }); toast('예약을 수정했습니다'); }
-      else { await db.collection('reservations').add({ ...data, createdAt: Date.now() }); toast('예약을 저장했습니다'); }
+      else { const ref = await db.collection('reservations').add({ ...data, createdAt: Date.now() }); myAdds.add(ref.id); toast('예약을 저장했습니다'); }
       resetResForm();
     } catch (err) { hf.textContent = writeErr(err); hf.className = 'hint err'; }
     finally { btn.disabled = false; }
@@ -477,7 +517,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}${titleHtml(rc)}</td>
         <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
         <td>${esc(r.plate)}</td>
-        <td>${stockCell(rc ? rc.stock : '', r.stock)}${s09Html(rc)}</td>
+        <td>${stockCell(rc, r.stock, { kind: 'res', id: r.id })}${s09Html(rc)}</td>
         <td class="parts">${partsCell(rc, 'res:' + r.id)}</td>
         <td>${esc(r.note)}</td>
         <td>${pdfLink(rc)}</td>
@@ -523,7 +563,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       return `<tr data-code="${esc(r.code)}">
         <td class="mono">${esc(r.code)}${titleHtml(r)}</td>
         <td class="num">${n ? `<strong>${n}</strong>대` : '<span style="color:var(--muted)">0</span>'}</td>
-        <td>${stockCell(r.stock)}${s09Html(r)}</td>
+        <td>${stockCell(r, '', { kind: 'rc', id: r.code })}${s09Html(r)}</td>
         <td class="parts">${partsCell(r, 'rc:' + r.code)}</td>
         <td>${pdfLink(r)}${r.pdfName ? `<span class="stocknote">${esc(r.pdfName)}</span>` : ''}</td>
         <td class="row-act">${up} ${edit}</td></tr>`;
@@ -533,7 +573,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const b = e.target.closest('button[data-redit]'); if (!b) return;
     const r = state.recalls.get(b.dataset.redit); if (!r) return;
     state.editingRc = r.code;
-    $('#r-code').value = r.code; $('#r-code').readOnly = true; $('#r-stock').value = r.stock || ''; $('#r-part').value = r.part || '';
+    $('#r-code').value = r.code; $('#r-code').readOnly = true; $('#r-stock').value = r.stockOverride || ''; $('#r-part').value = r.part || '';
     $('#rcFormTitle').textContent = '리콜 수정 · ' + r.code; $('#rcCancel').hidden = false;
     $('#rcForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -737,9 +777,9 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (!/^[A-Z0-9]{3,30}$/.test(code)) { h.textContent = '리콜번호는 영문·숫자로 입력해 주세요'; h.className = 'hint err'; return; }
     if (!state.editingRc && state.recalls.has(code)) { h.textContent = '이미 있는 리콜번호입니다. 목록에서 수정을 눌러 주세요'; h.className = 'hint err'; return; }
     const prev = state.recalls.get(code) || {};
-    const data = { code, stock: $('#r-stock').value.trim(), part: $('#r-part').value.trim() };
-    if (prev.pdf) { data.pdf = prev.pdf; data.pdfName = prev.pdfName || ''; }
-    if (prev.pdfPartsStatus) { data.pdfParts = prev.pdfParts || []; data.pdfPartsStatus = prev.pdfPartsStatus; }
+    // 기존 PDF·제목·부품 정보는 그대로 두고 부품 메모(와 goyang 계정의 재고 지정)만 바꿈
+    const data = { ...prev, code, part: $('#r-part').value.trim() };
+    if (state.isAdmin) data.stockOverride = $('#r-stock').value;
     try { await db.doc('recalls/' + code).set(data); toast(state.editingRc ? '리콜을 수정했습니다' : '리콜을 추가했습니다'); resetRc(); }
     catch (err) { h.textContent = writeErr(err); h.className = 'hint err'; }
   });
@@ -1059,6 +1099,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const canS09 = S09_USERS.includes(email.toLowerCase());
     $('#tab-s09').hidden = !canS09;
     if (!canS09) $('#view-s09').hidden = true;
+    // 재고현황 직접 지정도 같은 아이디만
+    state.isAdmin = canS09;
+    $('#f-stockWrap').hidden = !canS09; $('#r-stockWrap').hidden = !canS09;
+    setupNotify();
 
     const timer = setTimeout(() => { $('#sync').textContent = '저장소에 아직 연결되지 않았습니다'; }, 10000);
     let fresh = { r: false, c: false };
@@ -1077,11 +1121,45 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     }, () => {});
     db.collection('stockparts').onSnapshot(snap => { lastChunks = snap.docs; rebuildS09(lastChunks); }, () => {});
 
+    let known = null;
     db.collection('reservations').onSnapshot(snap => {
       state.reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (known) state.reservations.filter(r => !known.has(r.id) && !myAdds.has(r.id)).forEach(notifyRes);
+      known = new Set(state.reservations.map(r => r.id));
       state.loaded.r = true; fresh.r = true; mark();
       renderRes(); renderRc();
     }, () => { clearTimeout(timer); $('#sync').textContent = '예약 목록을 불러오지 못했습니다'; });
+  }
+
+  // ---------- 새 예약 알림 (사이트가 열려 있으면 다른 창을 보고 있어도 윈도우 알림) ----------
+  const myAdds = new Set();
+  const notifyOn = () => 'Notification' in window && Notification.permission === 'granted' && localStorage.getItem('recallNotify') !== 'off';
+  function setupNotify() {
+    const b = $('#notifyBtn');
+    if (!('Notification' in window)) return;
+    const paint = () => {
+      b.textContent = notifyOn() ? '🔔 예약 알림 켜짐' : Notification.permission === 'denied' ? '알림 차단됨' : '예약 알림 켜기';
+      b.classList.toggle('on', notifyOn());
+      b.title = Notification.permission === 'denied' ? '주소창 왼쪽 자물쇠 → 알림 → 허용으로 바꾼 뒤 새로고침하세요' : '누르면 켜기/끄기';
+    };
+    b.hidden = false; paint();
+    b.addEventListener('click', async () => {
+      if (Notification.permission === 'default') { await Notification.requestPermission(); localStorage.removeItem('recallNotify'); }
+      else if (Notification.permission === 'granted') localStorage.setItem('recallNotify', notifyOn() ? 'off' : 'on');
+      paint();
+      if (notifyOn()) toast('새 예약이 들어오면 알림이 뜹니다');
+    });
+  }
+  function beep() {
+    try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.25); } catch (e) {}
+  }
+  function notifyRes(r) {
+    const rc = state.recalls.get(r.recall);
+    toast('새 리콜 예약: ' + (r.date || '') + ' ' + (r.recall || ''));
+    if (!notifyOn()) return;
+    const body = `${r.date || ''} · ${r.recall || ''}${rc && rc.pdfTitle ? ' ' + rc.pdfTitle : ''}\n${r.plate || ''} ${r.vin || ''}`.trim();
+    try { const n = new Notification('새 리콜 예약', { body, tag: 'res-' + r.id }); n.onclick = () => { window.focus(); n.close(); }; beep(); } catch (e) {}
   }
 
   function offline() {
