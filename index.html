@@ -328,9 +328,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 
     <section class="panel">
       <div class="toolbar">
-        <input id="q-s09" type="search" placeholder="부품번호 검색">
+        <input id="q-s09" type="search" placeholder="부품번호 검색 (예: 2234203101)">
         <span class="count" id="s09Count"></span>
       </div>
+      <div id="s09Raw" class="sub" hidden></div>
       <div class="tbl">
         <table>
           <thead><tr><th>리콜번호</th><th>리콜 부품번호 / 작업내용</th><th>S09에서 찾은 부품</th><th>재고</th></tr></thead>
@@ -881,12 +882,12 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   const s09 = { meta: null, items: new Map(), keys: [], byBody: new Map(), cache: new Map(), sheet: null };
   // 부품번호를 PDF와 같은 모양으로: A2058800003 → A 205 880 00 03
   function fmtPart(k) {
-    const m = pkey(k).match(/^([A-Z]?)(\d{3})(\d{3})(\d{2})(\d{2})(\d*)$/);
+    const m = pkey(k).match(/^([A-Z]{0,3})(\d{3})(\d{3})(\d{2})(\d{2})([0-9A-Z]*)$/);
     if (!m) return String(k ?? '');
     return [m[1] ? m[1] + ' ' + m[2] : m[2], m[3], m[4], m[5], m[6]].filter(Boolean).join(' ');
   }
   // 10자리 숫자 몸통(A 빼고, 색상코드 빼고)으로 묶은 S09 색인
-  const partBody = k => { const m = pkey(k).match(/^[A-Z]?(\d{10})(\d*)$/); return m ? { body: m[1], ext: m[2] } : null; };
+  const partBody = k => { const m = pkey(k).match(/^[A-Z]{0,3}(\d{10})([0-9A-Z]*)$/); return m ? { body: m[1], ext: m[2] } : null; };
   function rcPartList(rc) {
     const out = new Map();
     (rc.pdfParts || []).forEach(p => { if (p.no) out.set(pkey(p.no), p.no); });
@@ -937,6 +938,15 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (q) rows = rows.filter(r => pkey(r.code + r.part + (r.pdfParts || []).map(p => p.no).join('')).includes(q));
     const found = rows.filter(r => (s09Match(r) || []).some(h => !h.missing)).length;
     $('#s09Count').textContent = `리콜 ${rows.length}건 중 ${found}건 부품 확인`;
+    // 검색어로 S09 원본 번호도 찾아서 보여줌 (S09에 어떻게 적혀 있는지 확인용)
+    const raw = $('#s09Raw');
+    if (q.length >= 5) {
+      const hit = s09.keys.filter(k => k.includes(q) || (k.length >= 6 && q.includes(k))).slice(0, 30);
+      raw.hidden = false;
+      raw.innerHTML = 'S09 원본에서 찾은 번호: ' + (hit.length
+        ? hit.map(k => `<span class="mono"><strong>${esc(k)}</strong> (${esc(fmtPart(k))}) : ${s09.items.get(k)}</span>`).join(' · ')
+        : '<strong>없음</strong> — 올린 S09 자료에 이 번호가 없습니다');
+    } else raw.hidden = true;
     body.innerHTML = rows.map(r => {
       const m = s09Match(r) || [];
       return `<tr><td class="mono">${esc(r.code)}${titleHtml(r)}</td><td class="parts">${partsCell(r, 's09:' + r.code)}</td>
