@@ -273,7 +273,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <div class="toolbar">
         <input id="q-rc" type="search" placeholder="리콜번호·부품번호 검색">
         <div class="legend">
-          <span class="chip own">자체재고</span><span class="chip order">주문 필요</span><span class="chip ask">재고 문의</span>
+          <span class="chip own" title="S09에서 리콜 부품이 모두 재고 있음">자체재고</span><span class="chip order" title="S09에 부품이 없거나 수량 0">주문 필요</span><span class="chip ask" title="부품번호 확인 불가, XENTRY 확인, PDF 없음">재고 문의</span><span class="chip sw" title="소프트웨어 업데이트 리콜">부품 불필요</span>
         </div>
         <span class="count" id="rcCount"></span>
       </div>
@@ -894,7 +894,9 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     if (!m || !m.length) return '';
     return m.map(h => `<span class="s09line"><span class="chip ${h.qty > 0 ? 'own' : 'err'}">${h.qty > 0 ? 'S09 재고 ' + h.qty : 'S09 재고 없음'}</span> <span class="mono">${esc(h.part)}</span></span>`).join('');
   }
-  function s09Summary(rc) {
+  // S09 탭 '재고' 칸도 예약 리스트·리콜 목록과 같은 기준
+  function s09Summary(rc) { return stockCell(rc); }
+  function s09SummaryOld(rc) {
     const m = s09Match(rc);
     if (!s09.meta) return '<span class="chip none">S09 미업로드</span>';
     if (!m || !m.length) return '<span class="chip none">해당 부품 없음</span>';
