@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="2026-11-26-2">
+<meta name="app-version" content="2026-11-26-3">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>리콜 예약리스트</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -802,7 +802,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         ? `<span class="confirm">삭제할까요? <button class="btn sm danger" data-del="${esc(r.id)}">삭제</button><button class="btn sm" data-nodel>취소</button></span>`
         : `<button class="btn sm" data-edit="${esc(r.id)}">수정</button> <button class="btn sm" data-ask="${esc(r.id)}">삭제</button>`;
       return `<tr class="${cls}">
-        ${ck}<td class="num nowrap">${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}</td>
+        ${ck}<td class="num nowrap">${esc(r.date)}${r.date === t ? ' <span class="chip order">오늘</span>' : ''}${ackChip(r)}</td>
         <td class="mono">${esc(r.recall)}${rc ? '' : ' <span class="chip err">목록 없음</span>'}${titleHtml(rc)}</td>
         <td class="mono">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
         <td class="nowrap">${esc(r.plate)}</td>
@@ -1654,7 +1654,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       state.reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (known) state.reservations.filter(r => !known.has(r.id) && !myAdds.has(r.id)).forEach(notifyRes);
       known = new Set(state.reservations.map(r => r.id));
-      showAck();
+      try { showAck(); } catch (err) { const n = $('#notice'); n.textContent = '확인 팝업 오류: ' + (err && err.message); n.hidden = false; }
       state.loaded.r = true; fresh.r = true; mark();
       renderRes(); renderRc();
     }, () => { clearTimeout(timer); $('#sync').textContent = '예약 목록을 불러오지 못했습니다'; });
@@ -1724,6 +1724,15 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     return state.reservations.filter(r => !r.ack && !ack.done.has(r.id) &&
       (r.ackRequired === true || (r.ackRequired === undefined && (r.createdAt || 0) >= ACK_SINCE)))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+  // goyang 화면에만: 이 예약이 확인 팝업 대상인지 표시 (팝업이 안 뜰 때 원인 확인용)
+  function ackChip(r) {
+    if (!state.isAdmin || r.ack) return '';
+    const by = r.createdBy ? r.createdBy.replace(/@recall\.app$/, '') : '알 수 없음';
+    const info = `등록: ${by} · ${r.createdAt ? new Date(r.createdAt).toLocaleString() : '시각 없음'} · 표시값: ${r.ackRequired === undefined ? '없음' : r.ackRequired}`;
+    if (pendingAcks().some(x => x.id === r.id)) return `<span class="stocknote"><span class="chip ask" title="${esc(info)}">확인 대기</span></span>`;
+    if ((r.createdAt || 0) >= ACK_SINCE) return `<span class="stocknote" title="${esc(info)}">팝업 제외 (${r.ackRequired === false ? 'goyang 등록' : '조건 안 맞음'})</span>`;
+    return '';
   }
   function ackRow(k, v) { return `<div class="ackrow"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`; }
   function showAck() {
