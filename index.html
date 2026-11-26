@@ -66,6 +66,8 @@ input,select,textarea{font:inherit;font-size:.92rem;color:var(--fg);background:v
 input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 input.mono{font-family:var(--f-mono);letter-spacing:.04em;text-transform:uppercase}
 input.bad{border-color:var(--err);background:var(--err-soft)}
+label b.req{color:var(--err);font-weight:700}
+label b.opt{color:var(--muted);font-weight:400;font-size:.72rem}
 .hint{font-weight:500;font-size:.75rem;letter-spacing:0;min-height:1.1em}
 .hint.err{color:var(--err)} .hint.ok{color:var(--ok)}
 .lookup{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:6px;padding:10px 12px;font-size:.88rem}
@@ -224,19 +226,19 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   <div id="view-res" style="display:grid;gap:20px">
     <section class="panel" id="resFormPanel">
       <h2 id="resFormTitle">예약 등록</h2>
-      <form id="resForm" class="form" autocomplete="off">
-        <label>예약날짜
+      <form id="resForm" class="form" autocomplete="off" novalidate>
+        <label><span>예약날짜 <b class="req">*</b></span>
           <input type="date" id="f-date" required>
         </label>
-        <label>리콜번호
+        <label><span>리콜번호 <b class="req">*</b></span>
           <input id="f-recall" class="mono" list="recallList" placeholder="RC5496637" required>
           <span class="hint" id="h-recall"></span>
         </label>
-        <label>차대번호 (17자리)
+        <label><span>차대번호 (17자리) <b class="req">*</b></span>
           <input id="f-vin" class="mono" maxlength="20" placeholder="W1N1671591A696351" required>
           <span class="hint" id="h-vin"></span>
         </label>
-        <label>차량번호
+        <label><span>차량번호 <b class="opt">(선택)</b></span>
           <input id="f-plate" placeholder="12가3456">
         </label>
         <label id="f-stockWrap" hidden>재고현황 (직접 지정)
@@ -247,7 +249,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
             <option value="재고 문의">재고 문의</option>
           </select>
         </label>
-        <label>비고
+        <label><span>비고 <b class="opt">(선택)</b></span>
           <input id="f-note" placeholder="예약 변경 등">
         </label>
         <div class="lookup" id="lookup">
@@ -582,13 +584,14 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   $('#f-recall').addEventListener('input', updateLookup);
   $('#f-stock').addEventListener('change', updateLookup);
   $('#f-vin').addEventListener('input', updateVin);
+  ['#f-date', '#f-recall'].forEach(s => $(s).addEventListener('input', () => { if ($(s).value.trim()) $(s).classList.remove('bad'); }));
 
   function resetResForm() {
     state.editingRes = null;
     lockFields(false);
     $('#resForm').reset(); $('#f-date').value = today();
     $('#resFormTitle').textContent = '예약 등록'; $('#saveRes').textContent = '예약 저장'; $('#cancelEdit').hidden = true;
-    $('#f-vin').classList.remove('bad'); $('#h-vin').textContent = ''; $('#h-form').textContent = '';
+    ['#f-date', '#f-recall', '#f-vin'].forEach(s => $(s).classList.remove('bad')); $('#h-vin').textContent = ''; $('#h-form').textContent = '';
     updateLookup();
   }
   $('#cancelEdit').addEventListener('click', resetResForm);
@@ -607,6 +610,13 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       catch (err) { hf.textContent = writeErr(err); hf.className = 'hint err'; }
       finally { btn.disabled = false; }
       return;
+    }
+    // 필수: 예약날짜 · 리콜번호 · 차대번호 (차량번호·비고는 선택)
+    const need = [['#f-date', '예약날짜'], ['#f-recall', '리콜번호'], ['#f-vin', '차대번호']].filter(([s]) => !$(s).value.trim());
+    ['#f-date', '#f-recall', '#f-vin'].forEach(s => $(s).classList.toggle('bad', need.some(([x]) => x === s)));
+    if (need.length) {
+      hf.textContent = '필수 항목을 입력해야 등록됩니다: ' + need.map(n => n[1]).join(', '); hf.className = 'hint err';
+      $(need[0][0]).focus(); return;
     }
     if (!updateVin()) { hf.textContent = '차대번호 17자리를 확인해 주세요'; hf.className = 'hint err'; $('#f-vin').focus(); return; }
     const data = {
