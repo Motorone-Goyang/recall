@@ -33,6 +33,18 @@ img{max-width:100%}
 .loginbox{width:100%;max-width:360px;display:grid;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:28px 24px}
 .loginbox h1{font-size:1.35rem}
 .loginbox .btn{width:100%;padding:10px}
+.ackmodal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(15,23,42,.55)}
+.ackmodal[hidden]{display:none}
+.ackbox{width:100%;max-width:560px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);color:var(--fg);border-radius:10px;border-top:5px solid var(--accent);padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.ackhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;margin-bottom:12px}
+.ackhead h2{margin:0;font-size:1.1rem}
+.ackcount{font-size:.82rem;color:var(--warn);font-weight:600}
+.ackrow{display:grid;grid-template-columns:84px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem;align-items:start}
+.ackrow .k{color:var(--muted);font-size:.8rem;font-weight:600;padding-top:2px}
+.ackrow .v{min-width:0}
+.ackrow .sub2{display:block;color:var(--muted);font-size:.8rem;margin-top:2px}
+.ackact{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.ackact .btn.primary{min-width:120px;padding:10px 18px;font-size:1rem}
 body.locked header,body.locked main{display:none}
 .who{font-size:.8rem;font-weight:600;color:var(--fg)}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
@@ -444,6 +456,16 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
 
 <datalist id="recallList"></datalist>
 <div class="toast" id="toast" hidden></div>
+<div id="ackModal" class="ackmodal" hidden role="alertdialog" aria-modal="true" aria-labelledby="ackTitle">
+  <div class="ackbox">
+    <div class="ackhead"><h2 id="ackTitle">🔔 새 리콜 예약이 들어왔습니다</h2><span class="ackcount" id="ackCount"></span></div>
+    <div id="ackBody"></div>
+    <div class="ackact">
+      <button class="btn" type="button" id="ackAll" hidden>모두 확인</button>
+      <button class="btn primary" type="button" id="ackOk">확인</button>
+    </div>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>
@@ -603,7 +625,12 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const btn = $('#saveRes'); btn.disabled = true;
     try {
       if (state.editingRes) { await db.doc('reservations/' + state.editingRes).set({ ...data, createdAt: (state.reservations.find(r => r.id === state.editingRes) || {}).createdAt || Date.now() }); toast('예약을 수정했습니다'); }
-      else { const ref = await db.collection('reservations').add({ ...data, createdAt: Date.now() }); myAdds.add(ref.id); toast('예약을 저장했습니다'); }
+      else {
+        // 확인자(goyang)가 아닌 사람이 넣은 예약은 확인자가 '확인'을 누를 때까지 팝업으로 알림
+        const extra = state.isAdmin ? { ackRequired: false } : { ackRequired: true, ack: false };
+        const ref = await db.collection('reservations').add({ ...data, ...extra, createdBy: state.email || '', createdAt: Date.now() });
+        myAdds.add(ref.id); toast('예약을 저장했습니다');
+      }
       resetResForm();
     } catch (err) { hf.textContent = writeErr(err); hf.className = 'hint err'; }
     finally { btn.disabled = false; }
@@ -1584,7 +1611,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     $('#tab-s09').hidden = !canS09;
     if (!canS09) $('#view-s09').hidden = true;
     // 재고현황 직접 지정도 같은 아이디만
-    state.isAdmin = canS09; $('#ckHead').hidden = !canS09;
+    state.isAdmin = canS09; state.email = email.toLowerCase(); $('#ckHead').hidden = !canS09;
     $('#f-stockWrap').hidden = !canS09; $('#r-stockWrap').hidden = !canS09;
     setupNotify();
 
@@ -1595,7 +1622,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     db.collection('recalls').onSnapshot(snap => {
       state.recalls = new Map(snap.docs.map(d => { const v = d.data(); return [d.id, { ...v, code: d.id }]; }));
       state.loaded.c = true; fresh.c = true; mark();
-      renderRc(); renderRes(); updateLookup(); renderS09();
+      renderRc(); renderRes(); updateLookup(); renderS09(); if (!$('#ackModal').hidden) showAck();
     }, () => { clearTimeout(timer); $('#sync').textContent = '리콜 목록을 불러오지 못했습니다'; });
 
     let lastChunks = [];
@@ -1616,6 +1643,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       state.reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (known) state.reservations.filter(r => !known.has(r.id) && !myAdds.has(r.id)).forEach(notifyRes);
       known = new Set(state.reservations.map(r => r.id));
+      showAck();
       state.loaded.r = true; fresh.r = true; mark();
       renderRes(); renderRc();
     }, () => { clearTimeout(timer); $('#sync').textContent = '예약 목록을 불러오지 못했습니다'; });
@@ -1649,8 +1677,60 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     toast('새 리콜 예약: ' + (r.date || '') + ' ' + (r.recall || ''));
     if (!notifyOn()) return;
     const body = `${r.date || ''} · ${r.recall || ''}${rc && rc.pdfTitle ? ' ' + rc.pdfTitle : ''}\n${r.plate || ''} ${r.vin || ''}`.trim();
-    try { const n = new Notification('새 리콜 예약', { body, tag: 'res-' + r.id }); n.onclick = () => { window.focus(); n.close(); }; beep(); } catch (e) {}
+    // 확인자에게는 윈도우 알림도 누를 때까지 남아 있게
+    try { const n = new Notification('새 리콜 예약', { body, tag: 'res-' + r.id, requireInteraction: state.isAdmin }); n.onclick = () => { window.focus(); n.close(); }; beep(); } catch (e) {}
   }
+
+  // ---------- 확인자 팝업: 확인 누를 때까지 닫히지 않음 ----------
+  const ack = { done: new Set(), shownId: null };
+  function pendingAcks() {
+    if (!state.isAdmin) return [];
+    return state.reservations.filter(r => r.ackRequired && !r.ack && !ack.done.has(r.id))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+  function ackRow(k, v) { return `<div class="ackrow"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`; }
+  function showAck() {
+    const box = $('#ackModal'), list = pendingAcks();
+    if (!list.length) { box.hidden = true; ack.shownId = null; document.title = '리콜 예약리스트'; return; }
+    const r = list[0], rc = state.recalls.get(r.recall), v = vinCheck(r.vin);
+    if (ack.shownId !== r.id) beep();
+    ack.shownId = r.id;
+    const when = r.createdAt ? new Date(r.createdAt) : null;
+    const whenTxt = when ? `${when.getMonth() + 1}/${when.getDate()} ${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '';
+    const by = r.createdBy ? esc(r.createdBy.replace(/@recall\.app$/, '')) : '';
+    $('#ackBody').innerHTML =
+      ackRow('예약날짜', `<strong>${esc(r.date)}</strong>`) +
+      ackRow('리콜번호', `<span class="mono"><strong>${esc(r.recall)}</strong></span>${rc && rc.pdfTitle ? `<span class="sub2">${esc(rc.pdfTitle)}</span>` : ''}${rc ? '' : ' <span class="chip err">목록 없음</span>'}`) +
+      ackRow('차대번호', `<span class="mono">${esc(r.vin)}</span>${v.ok ? '' : ` <span class="chip err">${esc(v.msg)}</span>`}`) +
+      ackRow('차량번호', esc(r.plate) || '<span class="sub2">—</span>') +
+      ackRow('재고현황', stockCell(rc, r.stock)) +
+      ackRow('부품번호', partsCell(rc, 'ack:' + r.id) || '<span class="sub2">—</span>') +
+      ackRow('비고', esc(r.note) || '<span class="sub2">—</span>') +
+      ackRow('PDF', pdfLink(rc) || '<span class="sub2">PDF 없음</span>') +
+      ackRow('등록', `${esc(whenTxt)}${by ? ' · ' + by : ''}`);
+    $('#ackCount').textContent = list.length > 1 ? `확인 안 한 예약 ${list.length}건 중 1번째` : '';
+    $('#ackAll').hidden = list.length < 2; $('#ackAll').textContent = `모두 확인 (${list.length}건)`;
+    document.title = `(${list.length}) 새 예약 확인 필요 · 리콜 예약리스트`;
+    box.hidden = false;
+  }
+  async function doAck(ids, btn) {
+    btn.disabled = true;
+    try {
+      for (const id of ids) {
+        await db.doc('reservations/' + id).update({ ack: true, ackAt: Date.now(), ackBy: state.email });
+        ack.done.add(id);
+      }
+      toast(ids.length > 1 ? `예약 ${ids.length}건을 확인했습니다` : '예약을 확인했습니다');
+    } catch (err) { toast(writeErr(err)); }
+    finally { btn.disabled = false; showAck(); }
+  }
+  $('#ackOk').addEventListener('click', e => { if (ack.shownId) doAck([ack.shownId], e.currentTarget); });
+  $('#ackAll').addEventListener('click', e => doAck(pendingAcks().map(r => r.id), e.currentTarget));
+  // 팝업 안 '부품 전체 보기'
+  $('#ackBody').addEventListener('click', e => {
+    const b = e.target.closest('button[data-expand]'); if (!b) return;
+    e.stopPropagation(); const k = b.dataset.expand; state.expanded.has(k) ? state.expanded.delete(k) : state.expanded.add(k); showAck();
+  }, true);
 
   function offline() {
     $('#resBody').innerHTML = '<tr><td colspan="9" class="empty">공유 저장소에 연결할 수 없어 예약 목록을 표시하지 못했습니다.</td></tr>';
