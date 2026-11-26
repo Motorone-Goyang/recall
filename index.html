@@ -87,6 +87,30 @@ a.pdf:hover{background:var(--accent-soft)}
 #cfPop .cf-list label em{font-style:normal;color:var(--muted);font-size:.75rem}
 #cfPop .cf-act{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 td.nowrap{white-space:nowrap}
+.bbstock{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch}
+.bbitem{display:grid;gap:6px;min-width:170px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.bbitem b{font-size:.95rem}
+.bbitem .bbq{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted)}
+.bbitem .bbq input{width:72px;padding:5px 8px;font-variant-numeric:tabular-nums;text-align:right}
+.bbitem .bbneed{font-size:.8rem;color:var(--muted)}
+.bbitem .bbneed strong{color:var(--fg)}
+.bbmeta{align-self:center;font-size:.82rem;color:var(--muted)}
+.keysec h2{margin-bottom:10px}
+.keygrid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.keygrid > .tbl{flex:0 1 auto;max-width:100%}
+.keygrid > .keynotes{flex:1 1 300px;max-width:520px}
+table.keytbl{min-width:0;width:auto}
+table.keytbl th,table.keytbl td{text-align:center;border:1px solid var(--line);padding:6px 12px}
+table.keytbl tbody th{text-align:left;background:var(--bg);color:var(--fg);font-size:.84rem;letter-spacing:0;position:static}
+table.keytbl thead th{position:static}
+td.km{font-weight:700;font-size:.95rem}
+td.km.ok{color:var(--ok);background:var(--ok-soft)}
+td.km.no{color:var(--muted)}
+td.km.maybe{color:var(--warn);background:var(--warn-soft)}
+td.km small{display:block;font-weight:500;font-size:.72rem}
+.keynote{white-space:pre-wrap;font-size:.84rem;line-height:1.55;padding:12px 14px;border-radius:8px;background:var(--bg);border:1px solid var(--line)}
+.keynote.star{background:var(--warn-soft);border-color:var(--warn);color:var(--fg)}
+.keynotes{display:grid;gap:10px}
 .toolbar .count{margin-left:auto;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg button{font:inherit;font-size:.82rem;border:0;background:var(--surface);color:var(--muted);padding:6px 12px;cursor:pointer}
@@ -172,6 +196,8 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       <button role="tab" id="tab-res" aria-selected="true" data-view="res">예약 리스트</button>
       <button role="tab" id="tab-rc" aria-selected="false" data-view="rc">리콜 목록</button>
       <button role="tab" id="tab-s09" aria-selected="false" data-view="s09">S09 재고</button>
+      <button role="tab" id="tab-bb" aria-selected="false" data-view="bb">블랙박스</button>
+      <button role="tab" id="tab-key" aria-selected="false" data-view="key">TRP 키발주 서류</button>
     </nav>
     <button class="btn sm" id="notifyBtn" type="button" hidden>예약 알림 켜기</button>
     <span class="who" id="who"></span>
@@ -358,6 +384,62 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       </div>
     </section>
   </div>
+
+  <!-- ============ 블랙박스 ============ -->
+  <div id="view-bb" hidden style="display:grid;gap:20px">
+    <section class="panel">
+      <h2 id="bbFormTitle">블랙박스 등록</h2>
+      <form id="bbForm" class="form" autocomplete="off">
+        <label>날짜
+          <input type="date" id="b-date">
+        </label>
+        <label>차량번호
+          <input id="b-plate" placeholder="12가3456">
+        </label>
+        <label>차대번호 (17자리)
+          <input id="b-vin" class="mono" maxlength="20" placeholder="W1N1671591A696351">
+          <span class="hint" id="h-bvin"></span>
+        </label>
+        <label>블랙박스 종류
+          <select id="b-type"><option>대쉬캠</option><option>스타뷰S</option></select>
+        </label>
+        <label>담당 / 비고
+          <input id="b-note" placeholder="양지수AD, 입고시 알림 등">
+        </label>
+        <div class="actions">
+          <button class="btn primary" type="submit" id="bbSave">저장</button>
+          <button class="btn" type="button" id="bbCancel" hidden>수정 취소</button>
+          <span class="hint" id="h-bb"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>블랙박스 현재고</h2>
+      <div class="bbstock" id="bbStock"></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="q-bb" type="search" placeholder="차량번호·차대번호·비고 검색">
+        <span class="count" id="bbCount"></span>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr>
+            <th data-col="bb:done" style="width:60px">완료</th><th data-col="bb:date">날짜</th><th data-col="bb:plate">차량번호</th><th data-col="bb:vin">차대번호</th><th data-col="bb:type">블랙박스 종류</th><th data-col="bb:note">담당 / 비고</th><th></th>
+          </tr></thead>
+          <tbody id="bbBody"><tr><td colspan="7" class="empty">블랙박스 목록을 불러오는 중입니다…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ TRP 키발주 서류 ============ -->
+  <div id="view-key" hidden style="display:grid;gap:20px">
+    <p class="sub" style="margin:0">◯ 필요 · ✕ 필요 없음 · △ 경우에 따라 필요 · - 해당 없음</p>
+    <div id="keyBody" style="display:grid;gap:20px"><section class="panel"><p class="sub" style="margin:0">불러오는 중…</p></section></div>
+  </div>
 </main>
 
 <datalist id="recallList"></datalist>
@@ -452,7 +534,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
   document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
   function showView(v) {
     document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
-    $('#view-res').hidden = v !== 'res'; $('#view-rc').hidden = v !== 'rc'; $('#view-s09').hidden = v !== 's09';
+    ['res', 'rc', 's09', 'bb', 'key'].forEach(k => { $('#view-' + k).hidden = v !== k; });
   }
 
   // ---------- reservation form ----------
@@ -565,7 +647,15 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       pdf: r => blobOk(r.pdf) ? 'PDF 있음' : 'PDF 없음',
     },
   };
-  const CF = { res: { f: {}, sort: null, base: [] }, rc: { f: {}, sort: null, base: [] } };
+  COLS.bb = {
+    done: r => r.done ? '완료' : '미완료',
+    date: r => val(r.date),
+    plate: r => val(r.plate),
+    vin: r => val(r.vin),
+    type: r => val(r.type),
+    note: r => val(r.note),
+  };
+  const CF = { res: { f: {}, sort: null, base: [] }, rc: { f: {}, sort: null, base: [] }, bb: { f: {}, sort: null, base: [] } };
   const cmp = (a, b) => (a === EMPTY) - (b === EMPTY) || a.localeCompare(b, 'ko', { numeric: true });
   function colFilter(tbl, rows, except) {
     const cols = COLS[tbl], f = CF[tbl].f;
@@ -589,7 +679,7 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const b = document.createElement('button'); b.type = 'button'; b.className = 'cfb'; b.dataset.cf = th.dataset.col; b.textContent = '▾';
     th.append(sp, b);
   });
-  const rerender = t => t === 'res' ? renderRes() : renderRc();
+  const rerender = t => t === 'res' ? renderRes() : t === 'rc' ? renderRc() : renderBb();
   const pop = document.createElement('div'); pop.id = 'cfPop'; pop.hidden = true; document.body.appendChild(pop);
   let popFor = null;
   function closePop() { pop.hidden = true; popFor = null; }
@@ -1229,6 +1319,131 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     renderS09(); renderRes(); renderRc(); updateLookup();
   }
 
+  // ---------- 블랙박스 ----------
+  const BB_TYPES = ['대쉬캠', '스타뷰S'];
+  const bb = { rows: [], stock: null, editing: null, confirmDel: null, loaded: false };
+  $('#b-date').value = today();
+  function bbVinHint() {
+    const el = $('#b-vin'), c = vinCheck(el.value), h = $('#h-bvin');
+    h.textContent = c.msg; h.className = 'hint ' + (c.ok ? 'ok' : c.msg ? 'err' : '');
+    el.classList.toggle('bad', !c.ok && !!c.msg);
+    return !norm(el.value) || c.ok;
+  }
+  $('#b-vin').addEventListener('input', bbVinHint);
+  function resetBb() {
+    bb.editing = null; $('#bbForm').reset(); $('#b-date').value = today();
+    $('#bbFormTitle').textContent = '블랙박스 등록'; $('#bbCancel').hidden = true; $('#h-bb').textContent = '';
+    $('#b-vin').classList.remove('bad'); $('#h-bvin').textContent = '';
+  }
+  $('#bbCancel').addEventListener('click', resetBb);
+  $('#bbForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const h = $('#h-bb');
+    if (!db) { h.textContent = '저장소에 연결되지 않아 저장할 수 없습니다'; h.className = 'hint err'; return; }
+    if (!bbVinHint()) { h.textContent = '차대번호 17자리를 확인해 주세요 (모르면 비워 두세요)'; h.className = 'hint err'; return; }
+    const data = { date: $('#b-date').value, plate: $('#b-plate').value.trim(), vin: norm($('#b-vin').value), type: $('#b-type').value, note: $('#b-note').value.trim() };
+    if (!data.plate && !data.vin) { h.textContent = '차량번호나 차대번호 중 하나는 입력해 주세요'; h.className = 'hint err'; return; }
+    if (!bb.editing && data.vin && bb.rows.some(r => norm(r.vin) === data.vin)) {
+      alert('이미 블랙박스 목록에 있는 차대번호입니다.\n\n차대번호: ' + data.vin); h.textContent = '이미 등록된 차대번호입니다'; h.className = 'hint err'; return;
+    }
+    const btn = $('#bbSave'); btn.disabled = true;
+    try {
+      if (bb.editing) { await db.doc('blackbox/' + bb.editing).update(data); toast('블랙박스 정보를 수정했습니다'); }
+      else { await db.collection('blackbox').add({ ...data, done: false, createdAt: Date.now() }); toast('블랙박스를 등록했습니다'); }
+      resetBb();
+    } catch (err) { h.textContent = writeErr(err); h.className = 'hint err'; }
+    finally { btn.disabled = false; }
+  });
+  $('#q-bb').addEventListener('input', renderBb);
+  function renderBb() {
+    if (!bb.loaded) return;
+    const body = $('#bbBody'), q = norm($('#q-bb').value);
+    let rows = bb.rows.slice();
+    if (q) rows = rows.filter(r => [r.plate, r.vin, r.note, r.type].some(v => norm(v).includes(q)));
+    CF.bb.base = rows;
+    rows = colFilter('bb', rows);
+    // 기본: 미완료 먼저, 그다음 날짜 최신 순 (날짜 없는 것은 위)
+    if (!colSort('bb', rows)) rows.sort((a, b) => (!!a.done - !!b.done) || (b.date || '9999').localeCompare(a.date || '9999'));
+    paintCfb();
+    const open = bb.rows.filter(r => !r.done).length;
+    $('#bbCount').textContent = `${rows.length}건 표시 · 전체 ${bb.rows.length}건 · 미완료 ${open}건`;
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="7" class="empty">${bb.rows.length ? '조건에 맞는 차량이 없습니다' : '아직 등록된 차량이 없습니다. 위 양식에서 등록하세요.'}</td></tr>`; renderBbStock(); return; }
+    body.innerHTML = rows.map(r => {
+      const v = r.vin ? vinCheck(r.vin) : { ok: true };
+      const act = bb.confirmDel === r.id
+        ? `<span class="confirm">삭제할까요? <button class="btn sm danger" data-bdel="${esc(r.id)}">삭제</button><button class="btn sm" data-bnodel>취소</button></span>`
+        : `<button class="btn sm" data-bedit="${esc(r.id)}">수정</button> <button class="btn sm" data-bask="${esc(r.id)}">삭제</button>`;
+      return `<tr class="${r.done ? 'checked' : ''}">
+        <td class="ckcell"><label class="ck" title="완료 표시"><input type="checkbox" data-bdone="${esc(r.id)}"${r.done ? ' checked' : ''}></label></td>
+        <td class="num nowrap">${esc(r.date) || '<span style="color:var(--muted)">—</span>'}</td>
+        <td class="nowrap">${esc(r.plate)}</td>
+        <td class="mono nowrap">${esc(r.vin)}${v.ok ? '' : ` <span class="chip err" title="${esc(v.msg)}">오류</span>`}</td>
+        <td><span class="chip ${r.type === '스타뷰S' ? 'ask' : 'sw'}">${esc(r.type)}</span></td>
+        <td>${esc(r.note)}</td>
+        <td class="row-act">${act}</td></tr>`;
+    }).join('');
+    renderBbStock();
+  }
+  $('#bbBody').addEventListener('change', async e => {
+    const c = e.target.closest('input[data-bdone]'); if (!c || !db) return;
+    const on = c.checked, tr = c.closest('tr'); tr.classList.toggle('checked', on); c.disabled = true;
+    try { await db.doc('blackbox/' + c.dataset.bdone).update({ done: on, doneAt: on ? Date.now() : null }); }
+    catch (err) { c.checked = !on; tr.classList.toggle('checked', !on); toast(writeErr(err)); }
+    finally { c.disabled = false; }
+  });
+  $('#bbBody').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.bedit) {
+      const r = bb.rows.find(x => x.id === b.dataset.bedit); if (!r) return;
+      bb.editing = r.id;
+      $('#b-date').value = r.date || ''; $('#b-plate').value = r.plate || ''; $('#b-vin').value = r.vin || '';
+      $('#b-type').value = BB_TYPES.includes(r.type) ? r.type : BB_TYPES[0]; $('#b-note').value = r.note || '';
+      $('#bbFormTitle').textContent = '블랙박스 수정 · ' + (r.plate || r.vin || ''); $('#bbCancel').hidden = false; bbVinHint();
+      $('#bbForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (b.dataset.bask) { bb.confirmDel = b.dataset.bask; renderBb(); }
+    else if ('bnodel' in b.dataset) { bb.confirmDel = null; renderBb(); }
+    else if (b.dataset.bdel) {
+      b.disabled = true;
+      try { await db.doc('blackbox/' + b.dataset.bdel).delete(); toast('삭제했습니다'); } catch (err) { toast(writeErr(err)); }
+      bb.confirmDel = null; renderBb();
+    }
+  });
+  // 현재고: 종류별 수량 (누구나 고칠 수 있음, 고친 날짜 표시)
+  function renderBbStock() {
+    const el = $('#bbStock'), st = (bb.stock && bb.stock.items) || {};
+    if (el.contains(document.activeElement)) return; // 입력 중이면 다시 그리지 않음
+    const need = t => bb.rows.filter(r => !r.done && r.type === t).length;
+    const d = bb.stock && bb.stock.updatedAt ? new Date(bb.stock.updatedAt) : null;
+    el.innerHTML = BB_TYPES.map(t => `<div class="bbitem"><b>${esc(t)}</b>
+        <span class="bbq">현재고 <input type="number" min="0" step="1" data-bbq="${esc(t)}" value="${Number(st[t] || 0)}"> 개</span>
+        <span class="bbneed">미완료 차량 <strong>${need(t)}</strong>대${need(t) > Number(st[t] || 0) ? ' · <span class="chip order">재고 부족</span>' : ''}</span></div>`).join('')
+      + `<span class="bbmeta">${d ? '업데이트: ' + (d.getFullYear() % 100) + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + (bb.stock.by ? ' · ' + esc(bb.stock.by) : '') : '아직 입력된 재고가 없습니다'}<br>수량을 바꾸면 바로 저장됩니다</span>`;
+  }
+  $('#bbStock').addEventListener('change', async e => {
+    const inp = e.target.closest('input[data-bbq]'); if (!inp || !db) return;
+    const items = { ...((bb.stock && bb.stock.items) || {}) };
+    items[inp.dataset.bbq] = Math.max(0, Math.round(Number(inp.value) || 0));
+    try { await db.doc('bbstock/meta').set({ items, updatedAt: Date.now(), by: $('#who').textContent }); inp.blur(); toast(inp.dataset.bbq + ' 현재고를 저장했습니다'); }
+    catch (err) { toast(writeErr(err)); }
+  });
+
+  // ---------- TRP 키발주 서류 (읽기 전용 안내표) ----------
+  const markCls = v => /^◯/.test(v) ? 'ok' : /^✕/.test(v) ? 'no' : /^△/.test(v) ? 'maybe' : '';
+  function renderKey(d) {
+    const el = $('#keyBody');
+    if (!d || !Array.isArray(d.sections)) { el.innerHTML = '<section class="panel"><p class="sub" style="margin:0">아직 키발주 서류 내용이 없습니다. Supabase에서 5번 SQL을 실행해 주세요.</p></section>'; return; }
+    el.innerHTML = d.sections.map(sec => {
+      const groups = (sec.groups || []).map(g => `<th colspan="${Number(g.span) || 1}">${esc(g.name)}</th>`).join('');
+      const head = (groups ? `<tr><th></th>${groups}</tr>` : '') + `<tr><th>서류</th>${(sec.cols || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr>`;
+      const rows = (sec.rows || []).map(r => `<tr><th>${esc(r[0])}</th>${r.slice(1).map(v => {
+        const m = String(v || '').match(/^(\S+)\s*(.*)$/) || ['', '', ''];
+        return `<td class="km ${markCls(v)}">${esc(m[1])}${m[2] ? `<small>${esc(m[2])}</small>` : ''}</td>`;
+      }).join('')}</tr>`).join('');
+      const notes = (sec.notes || []).map(n => `<div class="keynote${n.star ? ' star' : ''}">${esc(n.text)}</div>`).join('');
+      return `<section class="panel keysec"><h2>${esc(sec.title)}</h2><div class="keygrid"><div class="tbl"><table class="keytbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div><div class="keynotes">${notes}</div></div></section>`;
+    }).join('');
+  }
+
   // ---------- Supabase 연결 (DB · PDF 저장 · 로그인) ----------
   const CFG = window.RECALL_CONFIG || {};
   // 주소 뒤에 /rest/v1/ 등이 붙어 있어도 기본 주소만 사용
@@ -1382,6 +1597,12 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
       rebuildS09(lastChunks);
     }, () => {});
     db.collection('stockparts').onSnapshot(snap => { lastChunks = snap.docs; rebuildS09(lastChunks); }, () => {});
+
+    db.collection('blackbox').onSnapshot(snap => {
+      bb.rows = snap.docs.map(d => ({ id: d.id, ...d.data() })); bb.loaded = true; renderBb();
+    }, () => { $('#bbBody').innerHTML = '<tr><td colspan="7" class="empty">블랙박스 목록을 불러오지 못했습니다</td></tr>'; });
+    db.doc('bbstock/meta').onSnapshot(snap => { bb.stock = snap.exists ? snap.data() : null; renderBbStock(); }, () => {});
+    db.doc('keydocs/main').onSnapshot(snap => renderKey(snap.exists ? snap.data() : null), () => {});
 
     let known = null;
     db.collection('reservations').onSnapshot(snap => {
