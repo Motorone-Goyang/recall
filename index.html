@@ -1413,18 +1413,25 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     const el = $('#bbStock'), st = (bb.stock && bb.stock.items) || {};
     if (el.contains(document.activeElement)) return; // 입력 중이면 다시 그리지 않음
     const need = t => bb.rows.filter(r => !r.done && r.type === t).length;
-    const d = bb.stock && bb.stock.updatedAt ? new Date(bb.stock.updatedAt) : null;
+    // 업데이트 날짜는 직접 입력 (예전 자료는 저장 시각에서 날짜만 가져옴)
+    let date = (bb.stock && bb.stock.date) || '';
+    if (!date && bb.stock && bb.stock.updatedAt) { const d = new Date(bb.stock.updatedAt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); date = d.toISOString().slice(0, 10); }
     el.innerHTML = BB_TYPES.map(t => `<div class="bbitem"><b>${esc(t)}</b>
         <span class="bbq">현재고 <input type="number" min="0" step="1" data-bbq="${esc(t)}" value="${Number(st[t] || 0)}"> 개</span>
         <span class="bbneed">미완료 차량 <strong>${need(t)}</strong>대${need(t) > Number(st[t] || 0) ? ' · <span class="chip order">재고 부족</span>' : ''}</span></div>`).join('')
-      + `<span class="bbmeta">${d ? '업데이트: ' + (d.getFullYear() % 100) + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + (bb.stock.by ? ' · ' + esc(bb.stock.by) : '') : '아직 입력된 재고가 없습니다'}<br>수량을 바꾸면 바로 저장됩니다</span>`;
+      + `<div class="bbitem"><b>업데이트 날짜</b><span class="bbq"><input type="date" data-bbdate value="${esc(date)}" style="width:auto;text-align:left"></span></div>`;
   }
   $('#bbStock').addEventListener('change', async e => {
-    const inp = e.target.closest('input[data-bbq]'); if (!inp || !db) return;
-    const items = { ...((bb.stock && bb.stock.items) || {}) };
-    items[inp.dataset.bbq] = Math.max(0, Math.round(Number(inp.value) || 0));
-    try { await db.doc('bbstock/meta').set({ items, updatedAt: Date.now(), by: $('#who').textContent }); inp.blur(); toast(inp.dataset.bbq + ' 현재고를 저장했습니다'); }
-    catch (err) { toast(writeErr(err)); }
+    const inp = e.target.closest('input[data-bbq], input[data-bbdate]'); if (!inp || !db) return;
+    const cur = bb.stock || {};
+    const next = { items: { ...(cur.items || {}) }, date: cur.date || '' };
+    if (!next.date && cur.updatedAt) { const d = new Date(cur.updatedAt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); next.date = d.toISOString().slice(0, 10); }
+    if ('bbdate' in inp.dataset) next.date = inp.value;
+    else next.items[inp.dataset.bbq] = Math.max(0, Math.round(Number(inp.value) || 0));
+    try {
+      await db.doc('bbstock/meta').set(next); inp.blur();
+      toast('bbdate' in inp.dataset ? '업데이트 날짜를 저장했습니다' : inp.dataset.bbq + ' 현재고를 저장했습니다');
+    } catch (err) { toast(writeErr(err)); }
   });
 
   // ---------- TRP 키발주 서류 (읽기 전용 안내표) ----------
