@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="app-version" content="2026-11-26-2">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>리콜 예약리스트</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -1691,11 +1692,37 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     try { const n = new Notification('새 리콜 예약', { body, tag: 'res-' + r.id, requireInteraction: state.isAdmin }); n.onclick = () => { window.focus(); n.close(); }; beep(); } catch (e) {}
   }
 
+  // ---------- 새 버전 자동 반영: 열어 둔 화면도 몇 분 안에 최신 코드로 ----------
+  const MY_VER = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  function formBusy() {
+    const typed = ['#f-recall', '#f-vin', '#f-plate', '#f-note', '#b-plate', '#b-vin', '#b-note'].some(s => $(s) && $(s).value.trim());
+    const a = document.activeElement;
+    return typed || state.editingRes || bb.editing || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox');
+  }
+  async function checkVersion() {
+    if (!MY_VER) return;
+    try {
+      const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
+      const m = t.match(/<meta name="app-version" content="([^"]+)"/);
+      if (!m || m[1] === MY_VER) return;
+      if (!formBusy()) { location.reload(); return; }
+      const n = $('#notice');
+      n.innerHTML = '새 버전이 올라왔습니다. 입력을 마친 뒤 <button type="button" class="btn sm" id="reloadNow">새로고침</button>을 눌러 주세요.';
+      n.hidden = false; $('#reloadNow').onclick = () => location.reload();
+    } catch (e) {}
+  }
+  setInterval(checkVersion, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkVersion(); });
+
   // ---------- 확인자 팝업: 확인 누를 때까지 닫히지 않음 ----------
   const ack = { done: new Set(), shownId: null };
+  const ACK_SINCE = 1795656589000; // 2026-11-26 10:29 확인 팝업 기능을 올린 시각
   function pendingAcks() {
     if (!state.isAdmin) return [];
-    return state.reservations.filter(r => r.ackRequired && !r.ack && !ack.done.has(r.id))
+    // 등록한 화면이 옛 버전이라 표시(ackRequired)가 없어도, 팝업 기능을 올린 뒤 들어온 예약이면 확인 대상
+    // (goyang이 직접 등록한 예약은 ackRequired:false 로 저장되어 제외)
+    return state.reservations.filter(r => !r.ack && !ack.done.has(r.id) &&
+      (r.ackRequired === true || (r.ackRequired === undefined && (r.createdAt || 0) >= ACK_SINCE)))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }
   function ackRow(k, v) { return `<div class="ackrow"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`; }
