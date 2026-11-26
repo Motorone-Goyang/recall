@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="2026-11-26-3">
+<meta name="app-version" content="2026-11-26-4">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>리콜 예약리스트</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -865,7 +865,10 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
     body.innerHTML = rows.map(r => {
       const n = cnt.get(r.code) || 0;
       const up = state.canUpload ? `<label class="btn sm" style="display:inline-block;font-size:.8rem;color:var(--fg)">${blobOk(r.pdf) ? 'PDF 교체' : 'PDF 올리기'}<input type="file" accept="application/pdf" data-up="${esc(r.code)}" hidden></label>` : '';
-      const edit = state.canWrite ? `<button class="btn sm" data-redit="${esc(r.code)}">수정</button>` : '';
+      const used = state.reservations.filter(x => norm(x.recall) === r.code).length;
+      const edit = !state.canWrite ? '' : state.rcConfirmDel === r.code
+        ? `<span class="confirm">${used ? `예약 ${used}건이 이 리콜을 쓰고 있습니다. ` : ''}삭제할까요? <button class="btn sm danger" data-rdel="${esc(r.code)}">삭제</button><button class="btn sm" data-rnodel>취소</button></span>`
+        : `<button class="btn sm" data-redit="${esc(r.code)}">수정</button> <button class="btn sm" data-rask="${esc(r.code)}">삭제</button>`;
       return `<tr data-code="${esc(r.code)}">
         <td class="mono">${esc(r.code)}${titleHtml(r)}</td>
         <td class="num">${n ? `<strong>${n}</strong>대` : '<span style="color:var(--muted)">0</span>'}</td>
@@ -875,7 +878,22 @@ input[type=file]{padding:4px;font-size:.78rem;background:none;border:0;width:aut
         <td class="row-act">${up} ${edit}</td></tr>`;
     }).join('');
   }
-  $('#rcBody').addEventListener('click', e => {
+  $('#rcBody').addEventListener('click', async e => {
+    const d = e.target.closest('button[data-rask], button[data-rnodel], button[data-rdel]');
+    if (d) {
+      if (d.dataset.rask) { state.rcConfirmDel = d.dataset.rask; renderRc(); }
+      else if ('rnodel' in d.dataset) { state.rcConfirmDel = null; renderRc(); }
+      else {
+        d.disabled = true;
+        try {
+          await db.doc('recalls/' + d.dataset.rdel).delete();
+          if (state.editingRc === d.dataset.rdel) resetRc();
+          toast(d.dataset.rdel + ' 리콜을 삭제했습니다');
+        } catch (err) { toast(writeErr(err)); }
+        state.rcConfirmDel = null; renderRc();
+      }
+      return;
+    }
     const b = e.target.closest('button[data-redit]'); if (!b) return;
     const r = state.recalls.get(b.dataset.redit); if (!r) return;
     state.editingRc = r.code;
